@@ -25,10 +25,11 @@ const TILE_SIZE: f32 = 30.0;
 pub struct ClearSelectionsEvent;
 
 #[derive(Component)]
-struct Tile {
+pub struct Tile {
     colour: Color,
     selection: Color,
     hover: Color,
+    tile_state: TileState,
 }
 
 impl Tile {
@@ -37,8 +38,41 @@ impl Tile {
             colour,
             selection: Color::MIDNIGHT_BLUE,
             hover: Color::ALICE_BLUE,
+            tile_state: TileState::Wall,
         }
     }
+
+    pub fn try_spawn_tower(&mut self) -> Result<(), PlaceError> {
+        // if self.tile_state == TileState::Wall {
+        //     self.tile_state = TileState::Tower;
+        //     return Ok(());
+        // }
+        // Err(())
+        match self.tile_state {
+            TileState::Wall => {
+                self.tile_state = TileState::Tower;
+                Ok(())
+            }
+            TileState::Tower => Err(PlaceError::TowerAlready),
+            _ => Err(PlaceError::Floor),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum PlaceError {
+    TowerAlready,
+    Floor,
+}
+
+#[allow(dead_code)]
+#[derive(PartialEq)]
+enum TileState {
+    Wall,
+    Floor,
+    Tower,
+    Number,
+    Castle,
 }
 
 pub struct Grid {
@@ -150,8 +184,10 @@ fn interaction(
     grid: Res<Grid>,
     mouse: Res<MouseWorldPos>,
     mouse_click: Res<Input<MouseButton>>,
+    mut ev_clear: EventWriter<ClearSelectionsEvent>,
 ) {
     let hovered = grid.get_vec2(mouse.0);
+    let left_clicked = mouse_click.just_pressed(MouseButton::Left);
     if let Some(ent) = hovered {
         let target = q_tile.get_mut(ent);
         if let Ok(mut interaction) = target {
@@ -161,18 +197,21 @@ fn interaction(
                 }
                 Interaction::Hovered => {
                     // this can't run
-                    if mouse_click.just_pressed(MouseButton::Left) {
+                    // clear_interaction runs before this and clears hovered to none
+                    if left_clicked {
                         *interaction = Interaction::Clicked;
                     }
                 }
                 Interaction::None => {
                     *interaction = Interaction::Hovered;
-                    if mouse_click.just_pressed(MouseButton::Left) {
+                    if left_clicked {
                         *interaction = Interaction::Clicked;
                     }
                 }
             }
         }
+    } else if left_clicked {
+        ev_clear.send(ClearSelectionsEvent);
     }
 }
 

@@ -63,6 +63,11 @@ fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    right: Val::Px(0.0),
+                    ..default()
+                },
                 size: Size::new(Val::Percent(20.0), Val::Percent(100.0)),
                 // left-right
                 justify_content: JustifyContent::SpaceEvenly,
@@ -70,6 +75,7 @@ fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                 align_content: AlignContent::Center,
                 //align_items: AlignItems::FlexEnd,
                 flex_wrap: FlexWrap::Wrap,
+
                 ..default()
             },
             // #262b44

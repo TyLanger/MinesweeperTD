@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    grid::{ClearSelectionsEvent, Selection},
+    grid::{ClearSelectionsEvent, Selection, Tile},
     ui::ButtonPressEvent,
 };
 
@@ -16,7 +16,7 @@ impl Plugin for TowerPlugin {
 fn spawn_tower(
     mut commands: Commands,
     mut ev_button_press: EventReader<ButtonPressEvent>,
-    q_selection: Query<Entity, With<Selection>>,
+    mut q_selection: Query<(Entity, &mut Tile), With<Selection>>,
     mut ev_clear_selection: EventWriter<ClearSelectionsEvent>,
 ) {
     for ev in ev_button_press.iter() {
@@ -32,7 +32,7 @@ fn spawn_tower(
             }
             2 => {
                 println!("Build tower 2");
-                color = Color::CRIMSON;
+                color = Color::BLUE;
             }
             3 => {
                 println!("Build tower 3");
@@ -41,21 +41,29 @@ fn spawn_tower(
             _ => {}
         }
         ev_clear_selection.send(ClearSelectionsEvent);
-        for ent in q_selection.iter() {
+        for (ent, mut tile) in q_selection.iter_mut() {
             //commands.entity().add_child(child)
 
-            let child = commands
-                .spawn_bundle(SpriteBundle {
-                    sprite: Sprite {
-                        color,
-                        custom_size: Some(Vec2::new(15.0, 15.0)),
-                        ..default()
-                    },
-                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
-                    ..default()
-                })
-                .id();
-            commands.entity(ent).add_child(child);
+            let result = tile.try_spawn_tower();
+            match result {
+                Ok(_) => {
+                    let child = commands
+                        .spawn_bundle(SpriteBundle {
+                            sprite: Sprite {
+                                color,
+                                custom_size: Some(Vec2::new(15.0, 15.0)),
+                                ..default()
+                            },
+                            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+                            ..default()
+                        })
+                        .id();
+                    commands.entity(ent).add_child(child);
+                }
+                Err(e) => {
+                    println!("Failed to spawn. {:?}", e);
+                }
+            }
         }
     }
 }
