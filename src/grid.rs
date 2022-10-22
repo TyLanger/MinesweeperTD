@@ -8,6 +8,7 @@ pub struct GridPlugin;
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Grid { tiles: Vec::new() })
+            .add_event::<ClearSelectionsEvent>()
             .add_startup_system(setup)
             .add_system(clear_interaction.before(interaction))
             .add_system(interaction)
@@ -19,6 +20,9 @@ impl Plugin for GridPlugin {
 const GRID_WIDTH: usize = 18;
 const GRID_HEIGHT: usize = 14;
 const TILE_SIZE: f32 = 30.0;
+
+// Events
+pub struct ClearSelectionsEvent;
 
 #[derive(Component)]
 struct Tile {
@@ -156,6 +160,7 @@ fn interaction(
                     // do nothing
                 }
                 Interaction::Hovered => {
+                    // this can't run
                     if mouse_click.just_pressed(MouseButton::Left) {
                         *interaction = Interaction::Clicked;
                     }
@@ -172,7 +177,7 @@ fn interaction(
 }
 
 #[derive(Component)]
-struct Selection;
+pub struct Selection;
 
 fn tile_interaction(
     mut commands: Commands,
@@ -198,8 +203,10 @@ fn clear_selection(
     mut commands: Commands,
     q_selection: Query<Entity, With<Selection>>,
     keyboard: Res<Input<KeyCode>>,
+    ev_clear: EventReader<ClearSelectionsEvent>,
 ) {
-    if keyboard.just_pressed(KeyCode::Space) {
+    if keyboard.just_pressed(KeyCode::Space) || !ev_clear.is_empty() {
+        ev_clear.clear();
         for entity in q_selection.iter() {
             commands.entity(entity).remove::<Selection>();
         }
