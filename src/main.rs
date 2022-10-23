@@ -22,7 +22,7 @@ fn main() {
         .run();
 }
 
-struct MouseWorldPos(Vec2);
+pub struct MouseWorldPos(Vec2);
 
 fn setup(mut commands: Commands) {
     commands.spawn_bundle(Camera2dBundle::default());

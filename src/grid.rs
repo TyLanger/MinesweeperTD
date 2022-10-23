@@ -1,4 +1,5 @@
 use bevy::{prelude::*, render::texture::ImageSettings};
+use std::collections::HashSet;
 
 use crate::MouseWorldPos;
 
@@ -45,10 +46,12 @@ pub struct Tile {
     floor: Color,
     tile_state: TileState,
     number: usize,
+    x: usize,
+    y: usize,
 }
 
 impl Tile {
-    fn new(colour: Color, floor: Color) -> Self {
+    fn new(colour: Color, floor: Color, x: usize, y: usize) -> Self {
         Tile {
             colour,
             selection: Color::MIDNIGHT_BLUE,
@@ -56,6 +59,8 @@ impl Tile {
             tile_state: TileState::Wall,
             floor,
             number: 0,
+            x,
+            y,
         }
     }
 
@@ -100,12 +105,43 @@ enum TileState {
     Castle,
 }
 
+#[derive(Copy, Clone)]
+pub struct TileInfo {
+    entity: Entity,
+    //tile: Tile,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct Coords {
+    x: i32,
+    y: i32,
+}
+
+impl Coords {
+    fn new(x: i32, y: i32) -> Self {
+        Coords { x, y }
+    }
+
+    fn get_neighbour_coords(self) -> Vec<Coords> {
+        let a = Coords::new(self.x, self.y + 1);
+        let b = Coords::new(self.x + 1, self.y + 1);
+        let c = Coords::new(self.x + 1, self.y);
+        let d = Coords::new(self.x + 1, self.y - 1);
+        let e = Coords::new(self.x, self.y - 1);
+        let f = Coords::new(self.x - 1, self.y - 1);
+        let g = Coords::new(self.x - 1, self.y);
+        let h = Coords::new(self.x - 1, self.y + 1);
+
+        vec![a, b, c, d, e, f, g, h]
+    }
+}
+
 pub struct Grid {
-    pub tiles: Vec<Entity>,
+    pub tiles: Vec<TileInfo>,
 }
 
 impl Grid {
-    pub fn get_vec2(&self, pos: Vec2) -> Option<Entity> {
+    pub fn get_vec2(&self, pos: Vec2) -> Option<TileInfo> {
         let x = ((GRID_WIDTH as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.x) / TILE_SIZE;
         let y = ((GRID_HEIGHT as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.y) / TILE_SIZE;
 
@@ -116,7 +152,7 @@ impl Grid {
         self.get_xy(x as usize, y as usize)
     }
 
-    fn get_xy(&self, x: usize, y: usize) -> Option<Entity> {
+    fn get_xy(&self, x: usize, y: usize) -> Option<TileInfo> {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
             return None;
         }
@@ -124,7 +160,8 @@ impl Grid {
         // in order (0, 0), (0, 1), (0, 2)
         let index = x * GRID_HEIGHT + y;
         let tile = self.tiles.get(index);
-        tile.copied()
+        //tile.copied()
+        tile.map(|&t| t)
         // I guess this replaces this:
         // match tile {
         //     Some(&t) => Some(t),
@@ -132,7 +169,11 @@ impl Grid {
         // }
     }
 
-    fn get_neighbours(&self, x: usize, y: usize) -> Vec<Option<Entity>> {
+    fn get_coords(&self, coords: Coords) -> Option<TileInfo> {
+        self.get_xy(coords.x as usize, coords.y as usize)
+    }
+
+    fn get_neighbours(&self, x: usize, y: usize) -> Vec<Option<TileInfo>> {
         let a = self.get_xy(x, y + 1);
         let b = self.get_xy(x + 1, y + 1);
         let c = self.get_xy(x + 1, y);
@@ -154,6 +195,33 @@ impl Grid {
         }
 
         vec![a, b, c, d, e, f, g, h]
+    }
+
+    #[allow(dead_code)]
+    fn get_5x5_ring(&self, x: usize, y: usize) -> Vec<Option<TileInfo>> {
+        // (x+2, y), (x-2, y)
+        // (x, y+2), (x, y-2)
+        // 16 tiles
+        // let a = self.get_xy(x-2, y+2);
+        let mut v = Vec::new();
+        for i in -2..=2 {
+            for j in -2..=2 {
+                // only do the edges
+                if i == -2 || i == 2 || j == -2 || j == 2 {
+                    let i2 = x as i32 + i;
+                    let j2 = y as i32 + j;
+
+                    let a = if i2 >= 0 && j2 >= 0 {
+                        self.get_xy(i2 as usize, j2 as usize)
+                    } else {
+                        None
+                    };
+
+                    v.push(a);
+                }
+            }
+        }
+        v
     }
 }
 
@@ -215,7 +283,8 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberText
 
             let pos = offset + Vec3::new(i as f32 * TILE_SIZE, j as f32 * TILE_SIZE, 0.0);
 
-            let tile = commands
+            let tile = Tile::new(color, floor, i, j);
+            let tile_ent = commands
                 .spawn_bundle(SpriteBundle {
                     sprite: Sprite {
                         color,
@@ -225,7 +294,7 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberText
                     transform: Transform::from_translation(pos),
                     ..default()
                 })
-                .insert(Tile::new(color, floor))
+                .insert(tile)
                 .insert(Interaction::None)
                 .with_children(|tile| {
                     tile.spawn_bundle(SpriteSheetBundle {
@@ -236,7 +305,10 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberText
                 })
                 .id();
 
-            grid.tiles.push(tile);
+            grid.tiles.push(TileInfo {
+                entity: tile_ent,
+                //tile: tile,
+            });
         }
     }
 }
@@ -261,7 +333,7 @@ fn clear_interaction(mut q_tile: Query<(&mut Interaction, Option<&Selection>), W
 }
 
 // with<tile> stops it from messing with UI stuff I might have
-fn interaction(
+pub fn interaction(
     mut q_tile: Query<&mut Interaction, With<Tile>>,
     grid: Res<Grid>,
     mouse: Res<MouseWorldPos>,
@@ -270,8 +342,9 @@ fn interaction(
 ) {
     let hovered = grid.get_vec2(mouse.0);
     let left_clicked = mouse_click.just_pressed(MouseButton::Left);
-    if let Some(ent) = hovered {
-        let target = q_tile.get_mut(ent);
+    let right_clicked = mouse_click.just_pressed(MouseButton::Right);
+    if let Some(info) = hovered {
+        let target = q_tile.get_mut(info.entity);
         if let Ok(mut interaction) = target {
             match *interaction {
                 Interaction::Clicked => {
@@ -292,7 +365,9 @@ fn interaction(
                 }
             }
         }
-    } else if left_clicked {
+    } else if right_clicked {
+        // this breaks for some reason if using left click
+        // println!("Clear interaction");
         ev_clear.send(ClearSelectionsEvent);
     }
 }
@@ -328,6 +403,7 @@ pub fn clear_selection(
 ) {
     if keyboard.just_pressed(KeyCode::Space) || !ev_clear.is_empty() {
         ev_clear.clear();
+        //println!("Clear selection");
         for entity in q_selection.iter() {
             commands.entity(entity).remove::<Selection>();
         }
@@ -341,15 +417,15 @@ fn make_floor(
 ) {
     if keyboard.just_pressed(KeyCode::F) {
         let start = grid.get_xy(4, 5);
-        if let Some(start) = start {
-            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(start) {
+        if let Some(info) = start {
+            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
                 tile.tile_state = TileState::Floor;
                 sprite.color = tile.get_colour();
             }
         }
         let start = grid.get_xy(5, 5);
-        if let Some(start) = start {
-            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(start) {
+        if let Some(info) = start {
+            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
                 tile.tile_state = TileState::Floor;
                 sprite.color = tile.get_colour();
             }
@@ -359,8 +435,8 @@ fn make_floor(
         let y = 10;
         // center
         let start = grid.get_xy(x, y);
-        if let Some(start) = start {
-            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(start) {
+        if let Some(info) = start {
+            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
                 tile.tile_state = TileState::Floor;
                 sprite.color = tile.get_colour();
                 tile.number = 1;
@@ -369,8 +445,8 @@ fn make_floor(
         // neighbours
         let neighbours = grid.get_neighbours(x, y);
         for (i, ent) in neighbours.iter().enumerate() {
-            if let Some(ent) = ent {
-                if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(*ent) {
+            if let Some(info) = ent {
+                if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
                     tile.tile_state = TileState::Floor;
                     sprite.color = tile.get_colour();
                     // change this
@@ -378,12 +454,115 @@ fn make_floor(
                 }
             }
         }
+
+        let x = 10;
+        let y = 4;
+        let coords = Coords::new(x, y);
+        let center = grid.get_coords(coords);
+        if let Some(info) = center {
+            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                tile.tile_state = TileState::Floor;
+                sprite.color = tile.get_colour();
+                tile.number = 0;
+            }
+        }
+        // set all to floor
+        let neighbours = grid.get_neighbours(x as usize, y as usize);
+        for ent in neighbours.iter() {
+            if let Some(info) = ent {
+                if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                    tile.tile_state = TileState::Floor;
+                    sprite.color = tile.get_colour();
+                }
+            }
+        }
+
+        let mut wall_set: HashSet<Coords> = HashSet::new();
+        // now check for the numbers
+        let neighbours = coords.get_neighbour_coords();
+        for &c in neighbours.iter() {
+            if c.x > 0 && c.y > 0 {
+                if let Some(_info) = grid.get_coords(c) {
+                    // if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                    //     tile.tile_state = TileState::Floor;
+                    //     sprite.color = tile.get_colour();
+                    // }
+
+                    //let mut wall_count = 0;
+                    let wall_coords = c.get_neighbour_coords();
+                    for &wc in wall_coords.iter() {
+                        if let Some(info2) = grid.get_coords(wc) {
+                            if let Ok((tile, _sprite)) = q_tiles.get(info2.entity) {
+                                if tile.tile_state == TileState::Wall {
+                                    //wall_count += 1;
+                                    wall_set.insert(Coords::new(tile.x as i32, tile.y as i32));
+                                }
+                            }
+                        }
+                    }
+
+                    //println!("wall set count: {:?}", wall_set.len());
+
+                    // let mut random = wall_count;
+                    // if number_total > random {
+
+                    // } else {
+                    //     random = number_total;
+                    // }
+                    // number_total -= usize::min(random, number_total);
+                    // if let Ok((mut tile, _sprite)) = q_tiles.get_mut(info.entity) {
+                    //     tile.number = random;
+                    // }
+                }
+            }
+        }
+        // println!("final wall set count: {:?}", wall_set.len());
+
+        let mut random_set = HashSet::new();
+        let number_total = 8;
+
+        for (i, c) in wall_set.drain().enumerate() {
+            random_set.insert(c);
+            println!("Bomb at {:?}", c);
+            if i > number_total {
+                break;
+            }
+        }
+        // coordinates of the bombs
+        for c in random_set.drain() {
+            let n = c.get_neighbour_coords();
+            for c in n {
+                if let Some(info) = grid.get_coords(c) {
+                    if let Ok((mut tile, _sprite)) = q_tiles.get_mut(info.entity) {
+                        if tile.tile_state == TileState::Floor {
+                            let ct = Coords::new(tile.x as i32, tile.y as i32);
+                            if ct == c {
+                                tile.number += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // set numbers
+        // let neighbours = grid.get_neighbours(x as usize, y as usize);
+        // for ent in neighbours.iter() {
+        //     if let Some(info) = ent {
+        //         if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+        //             tile.number
+        //         }
+        //     }
+        // }
     }
 }
 
 fn update_numbers(
     q_tiles: Query<&Tile>,
-    mut q_tile_numbers: Query<(&mut TextureAtlasSprite, &Handle<TextureAtlas>, &Parent), With<NumberSprite>>,
+    mut q_tile_numbers: Query<
+        (&mut TextureAtlasSprite, &Handle<TextureAtlas>, &Parent),
+        With<NumberSprite>,
+    >,
 ) {
     for (mut sprite, _handle, parent) in q_tile_numbers.iter_mut() {
         let tile = q_tiles.get(parent.get()).unwrap();

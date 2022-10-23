@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    grid::{ClearSelectionsEvent, Selection, Tile, clear_selection},
+    grid::{interaction, ClearSelectionsEvent, Selection, Tile},
     ui::ButtonPressEvent,
 };
 
@@ -9,7 +9,21 @@ pub struct TowerPlugin;
 
 impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(spawn_tower.before(clear_selection));
+        // this before just doesn't work?
+        // Clear interaction
+        // Build tower 1
+        // Clear button
+
+        // good
+        // Build tower 2
+        // Clear button false
+        // Clear interaction
+
+        // bad
+        // Clear interaction
+        // Build tower 0
+        // Clear button true
+        app.add_system(spawn_tower.before(interaction));
     }
 }
 
@@ -40,6 +54,8 @@ fn spawn_tower(
             }
             _ => {}
         }
+        //println!("Clear button {:}", q_selection.is_empty());
+
         ev_clear_selection.send(ClearSelectionsEvent);
         for (ent, mut tile) in q_selection.iter_mut() {
             //commands.entity().add_child(child)
