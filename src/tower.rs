@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    grid::{ClearSelectionsEvent, Selection, Tile},
+    grid::{ClearSelectionsEvent, Selection, Tile, clear_selection},
     ui::ButtonPressEvent,
 };
 
@@ -9,7 +9,7 @@ pub struct TowerPlugin;
 
 impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(spawn_tower);
+        app.add_system(spawn_tower.before(clear_selection));
     }
 }
 

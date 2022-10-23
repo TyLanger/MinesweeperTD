@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::texture::ImageSettings};
 
 use crate::MouseWorldPos;
 
@@ -8,12 +8,17 @@ pub struct GridPlugin;
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Grid { tiles: Vec::new() })
+            .insert_resource(ImageSettings::default_nearest())
+            .insert_resource(NumberTextures::default())
             .add_event::<ClearSelectionsEvent>()
+            .add_startup_system(setup_atlas.before(setup))
             .add_startup_system(setup)
+            .add_system(make_floor)
             .add_system(clear_interaction.before(interaction))
             .add_system(interaction)
             .add_system(tile_interaction.after(interaction))
-            .add_system(clear_selection.after(tile_interaction));
+            .add_system(clear_selection.after(tile_interaction))
+            .add_system(update_numbers);
     }
 }
 
@@ -24,21 +29,33 @@ const TILE_SIZE: f32 = 30.0;
 // Events
 pub struct ClearSelectionsEvent;
 
+#[derive(Default)]
+struct NumberTextures {
+    handle: Handle<TextureAtlas>,
+}
+
+#[derive(Component)]
+struct NumberSprite;
+
 #[derive(Component)]
 pub struct Tile {
     colour: Color,
     selection: Color,
     hover: Color,
+    floor: Color,
     tile_state: TileState,
+    number: usize,
 }
 
 impl Tile {
-    fn new(colour: Color) -> Self {
+    fn new(colour: Color, floor: Color) -> Self {
         Tile {
             colour,
             selection: Color::MIDNIGHT_BLUE,
             hover: Color::ALICE_BLUE,
             tile_state: TileState::Wall,
+            floor,
+            number: 0,
         }
     }
 
@@ -55,6 +72,14 @@ impl Tile {
             }
             TileState::Tower => Err(PlaceError::TowerAlready),
             _ => Err(PlaceError::Floor),
+        }
+    }
+
+    pub fn get_colour(&self) -> Color {
+        match self.tile_state {
+            TileState::Wall => self.colour,
+            TileState::Floor => self.floor,
+            _ => Color::ANTIQUE_WHITE,
         }
     }
 }
@@ -106,9 +131,44 @@ impl Grid {
         //     None => None,
         // }
     }
+
+    fn get_neighbours(&self, x: usize, y: usize) -> Vec<Option<Entity>> {
+        let a = self.get_xy(x, y + 1);
+        let b = self.get_xy(x + 1, y + 1);
+        let c = self.get_xy(x + 1, y);
+        let mut d = None;
+        let mut e = None;
+        let mut f = None;
+        let mut g = None;
+        let mut h = None;
+        if y > 0 {
+            d = self.get_xy(x + 1, y - 1);
+            e = self.get_xy(x, y - 1);
+        }
+        if x > 0 && y > 0 {
+            f = self.get_xy(x - 1, y - 1);
+        }
+        if x > 0 {
+            g = self.get_xy(x - 1, y);
+            h = self.get_xy(x - 1, y + 1);
+        }
+
+        vec![a, b, c, d, e, f, g, h]
+    }
 }
 
-fn setup(mut commands: Commands, mut grid: ResMut<Grid>) {
+fn setup_atlas(
+    asset_server: Res<AssetServer>,
+    mut texture_atlasses: ResMut<Assets<TextureAtlas>>,
+    mut numbers: ResMut<NumberTextures>,
+) {
+    let texture_handle = asset_server.load("sprites/number_strip.png");
+    let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::splat(16.0), 10, 1);
+    let texture_atlas_handle = texture_atlasses.add(texture_atlas);
+    numbers.handle = texture_atlas_handle;
+}
+
+fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberTextures>) {
     let offset = Vec3::new(
         -0.5 * (GRID_WIDTH as f32) * TILE_SIZE,
         -0.5 * (GRID_HEIGHT as f32) * TILE_SIZE,
@@ -122,8 +182,9 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>) {
                 //Color::GREEN
                 // #b4dc25
                 //Color::rgb_u8(0xb4, 0xdc, 0x25)
-                // #3e8948
-                Color::rgb_u8(0x3e, 0x89, 0x48)
+
+                // #265c42
+                Color::rgb_u8(0x26, 0x5c, 0x42)
             } else {
                 //Color::SEA_GREEN
                 // #26a630
@@ -135,7 +196,21 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>) {
                 // #265c42
                 //Color::rgb_u8(0x26, 0x5c, 0x42)
                 // #63c74d
-                Color::rgb_u8(0x63, 0xc7, 0x4d)
+                // Color::rgb_u8(0x63, 0xc7, 0x4d)
+
+                // #3e8948
+                Color::rgb_u8(0x3e, 0x89, 0x48)
+            };
+
+            // #e4a672
+            // #b86f50
+            // #e8b796
+            let floor = if even {
+                //Color::rgb_u8(0xb8, 0x6f, 0x50)
+                Color::rgb_u8(0xe4, 0xa6, 0x72)
+            } else {
+                //Color::rgb_u8(0xe4, 0xa6, 0x72)
+                Color::rgb_u8(0xe8, 0xb7, 0x96)
             };
 
             let pos = offset + Vec3::new(i as f32 * TILE_SIZE, j as f32 * TILE_SIZE, 0.0);
@@ -150,8 +225,15 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>) {
                     transform: Transform::from_translation(pos),
                     ..default()
                 })
-                .insert(Tile::new(color))
+                .insert(Tile::new(color, floor))
                 .insert(Interaction::None)
+                .with_children(|tile| {
+                    tile.spawn_bundle(SpriteSheetBundle {
+                        texture_atlas: numbers.handle.clone(),
+                        ..default()
+                    })
+                    .insert(NumberSprite);
+                })
                 .id();
 
             grid.tiles.push(tile);
@@ -232,13 +314,13 @@ fn tile_interaction(
                 sprite.color = tile.hover;
             }
             Interaction::None => {
-                sprite.color = tile.colour;
+                sprite.color = tile.get_colour();
             }
         }
     }
 }
 
-fn clear_selection(
+pub fn clear_selection(
     mut commands: Commands,
     q_selection: Query<Entity, With<Selection>>,
     keyboard: Res<Input<KeyCode>>,
@@ -249,5 +331,62 @@ fn clear_selection(
         for entity in q_selection.iter() {
             commands.entity(entity).remove::<Selection>();
         }
+    }
+}
+
+fn make_floor(
+    mut q_tiles: Query<(&mut Tile, &mut Sprite)>,
+    grid: Res<Grid>,
+    keyboard: Res<Input<KeyCode>>,
+) {
+    if keyboard.just_pressed(KeyCode::F) {
+        let start = grid.get_xy(4, 5);
+        if let Some(start) = start {
+            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(start) {
+                tile.tile_state = TileState::Floor;
+                sprite.color = tile.get_colour();
+            }
+        }
+        let start = grid.get_xy(5, 5);
+        if let Some(start) = start {
+            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(start) {
+                tile.tile_state = TileState::Floor;
+                sprite.color = tile.get_colour();
+            }
+        }
+
+        let x = 9;
+        let y = 10;
+        // center
+        let start = grid.get_xy(x, y);
+        if let Some(start) = start {
+            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(start) {
+                tile.tile_state = TileState::Floor;
+                sprite.color = tile.get_colour();
+                tile.number = 1;
+            }
+        }
+        // neighbours
+        let neighbours = grid.get_neighbours(x, y);
+        for (i, ent) in neighbours.iter().enumerate() {
+            if let Some(ent) = ent {
+                if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(*ent) {
+                    tile.tile_state = TileState::Floor;
+                    sprite.color = tile.get_colour();
+                    // change this
+                    tile.number = i + 5;
+                }
+            }
+        }
+    }
+}
+
+fn update_numbers(
+    q_tiles: Query<&Tile>,
+    mut q_tile_numbers: Query<(&mut TextureAtlasSprite, &Handle<TextureAtlas>, &Parent), With<NumberSprite>>,
+) {
+    for (mut sprite, _handle, parent) in q_tile_numbers.iter_mut() {
+        let tile = q_tiles.get(parent.get()).unwrap();
+        sprite.index = tile.number % 9;
     }
 }
