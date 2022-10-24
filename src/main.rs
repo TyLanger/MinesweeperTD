@@ -6,6 +6,7 @@
 
 use bevy::{prelude::*, render::camera::RenderTarget};
 
+mod castle;
 mod grid;
 mod tower;
 mod ui;
@@ -16,6 +17,7 @@ fn main() {
         .add_plugin(grid::GridPlugin)
         .add_plugin(ui::UiPlugin)
         .add_plugin(tower::TowerPlugin)
+        .add_plugin(castle::CastlePlugin)
         .insert_resource(MouseWorldPos(Vec2::ONE * 10000.0))
         .add_startup_system(setup)
         .add_system(update_mouse_position)

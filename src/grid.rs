@@ -1,7 +1,11 @@
 use bevy::{prelude::*, render::texture::ImageSettings};
 use std::collections::HashSet;
 
-use crate::MouseWorldPos;
+use crate::{
+    castle::{ExpandAreaEvent, NumberFilledEvent, TerritoryInfo},
+    tower::TowerPlacedEvent,
+    MouseWorldPos,
+};
 
 // palette from https://lospec.com/palette-list/endesga-32
 pub struct GridPlugin;
@@ -14,17 +18,18 @@ impl Plugin for GridPlugin {
             .add_event::<ClearSelectionsEvent>()
             .add_startup_system(setup_atlas.before(setup))
             .add_startup_system(setup)
-            .add_system(make_floor)
+            .add_system(expand_floor)
             .add_system(clear_interaction.before(interaction))
             .add_system(interaction)
             .add_system(tile_interaction.after(interaction))
             .add_system(clear_selection.after(tile_interaction))
-            .add_system(update_numbers);
+            .add_system(update_numbers)
+            .add_system(decrement_numbers);
     }
 }
 
-const GRID_WIDTH: usize = 18;
-const GRID_HEIGHT: usize = 14;
+const GRID_WIDTH: usize = 21;
+const GRID_HEIGHT: usize = 21;
 const TILE_SIZE: f32 = 30.0;
 
 // Events
@@ -44,10 +49,10 @@ pub struct Tile {
     selection: Color,
     hover: Color,
     floor: Color,
-    tile_state: TileState,
+    pub tile_state: TileState,
     number: usize,
-    x: usize,
-    y: usize,
+    pub x: usize,
+    pub y: usize,
 }
 
 impl Tile {
@@ -93,11 +98,12 @@ impl Tile {
 pub enum PlaceError {
     TowerAlready,
     Floor,
+    //NotEdge,
 }
 
 #[allow(dead_code)]
 #[derive(PartialEq)]
-enum TileState {
+pub enum TileState {
     Wall,
     Floor,
     Tower,
@@ -107,7 +113,7 @@ enum TileState {
 
 #[derive(Copy, Clone)]
 pub struct TileInfo {
-    entity: Entity,
+    pub entity: Entity,
     //tile: Tile,
 }
 
@@ -133,6 +139,20 @@ impl Coords {
         let h = Coords::new(self.x - 1, self.y + 1);
 
         vec![a, b, c, d, e, f, g, h]
+    }
+
+    fn get_ring_coords(self, radius: i32) -> Vec<Coords> {
+        let mut v = Vec::new();
+        for i in -radius..=radius {
+            for j in -radius..=radius {
+                if i == -radius || i == radius || j == -radius || j == radius {
+                    let x = self.x + i;
+                    let y = self.y + j;
+                    v.push(Coords::new(x, y));
+                }
+            }
+        }
+        v
     }
 }
 
@@ -208,6 +228,31 @@ impl Grid {
             for j in -2..=2 {
                 // only do the edges
                 if i == -2 || i == 2 || j == -2 || j == 2 {
+                    let i2 = x as i32 + i;
+                    let j2 = y as i32 + j;
+
+                    let a = if i2 >= 0 && j2 >= 0 {
+                        self.get_xy(i2 as usize, j2 as usize)
+                    } else {
+                        None
+                    };
+
+                    v.push(a);
+                }
+            }
+        }
+        v
+    }
+
+    pub fn get_ring(&self, x: usize, y: usize, radius: i32) -> Vec<Option<TileInfo>> {
+        // radius of 0 is self
+        // 1 is 3x3
+        // 2 is 5x5, etc..
+        let mut v = Vec::new();
+        for i in -radius..=radius {
+            for j in -radius..=radius {
+                // only do the edges
+                if i == -radius || i == radius || j == -radius || j == radius {
                     let i2 = x as i32 + i;
                     let j2 = y as i32 + j;
 
@@ -410,125 +455,113 @@ pub fn clear_selection(
     }
 }
 
-fn make_floor(
+fn expand_floor(
     mut q_tiles: Query<(&mut Tile, &mut Sprite)>,
     grid: Res<Grid>,
-    keyboard: Res<Input<KeyCode>>,
+    territory_info: Res<TerritoryInfo>,
+    ev_expand: EventReader<ExpandAreaEvent>,
 ) {
-    if keyboard.just_pressed(KeyCode::F) {
-        let start = grid.get_xy(4, 5);
-        if let Some(info) = start {
-            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                tile.tile_state = TileState::Floor;
-                sprite.color = tile.get_colour();
-            }
-        }
-        let start = grid.get_xy(5, 5);
-        if let Some(info) = start {
-            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                tile.tile_state = TileState::Floor;
-                sprite.color = tile.get_colour();
-            }
-        }
+    if !ev_expand.is_empty() {
+        ev_expand.clear();
+        let x = territory_info.x;
+        let y = territory_info.y;
+        let radius = territory_info.radius;
+        let center_coords = Coords::new(x as i32, y as i32);
 
-        let x = 9;
-        let y = 10;
-        // center
-        let start = grid.get_xy(x, y);
-        if let Some(info) = start {
-            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                tile.tile_state = TileState::Floor;
-                sprite.color = tile.get_colour();
-                tile.number = 1;
-            }
-        }
-        // neighbours
-        let neighbours = grid.get_neighbours(x, y);
-        for (i, ent) in neighbours.iter().enumerate() {
-            if let Some(info) = ent {
+        if radius == 1 {
+            // set center to floor
+            let center = grid.get_coords(center_coords);
+            if let Some(info) = center {
                 if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
                     tile.tile_state = TileState::Floor;
                     sprite.color = tile.get_colour();
-                    // change this
-                    tile.number = i + 5;
+                    tile.number = 0;
                 }
             }
         }
-
-        let x = 10;
-        let y = 4;
-        let coords = Coords::new(x, y);
-        let center = grid.get_coords(coords);
-        if let Some(info) = center {
-            if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                tile.tile_state = TileState::Floor;
-                sprite.color = tile.get_colour();
-                tile.number = 0;
+        // radius goes up += 2
+        if radius > 2 {
+            // Brute force
+            // for (mut tile, mut _sprite) in q_tiles.iter_mut() {
+            //     if tile.tile_state == TileState::Floor {
+            //         tile.number = 0;
+            //     }
+            // }
+            // clear current numbers
+            let neighbours = grid.get_ring(x, y, radius - 2);
+            for ent in neighbours.iter() {
+                if let Some(info) = ent {
+                    if let Ok((mut tile, mut _sprite)) = q_tiles.get_mut(info.entity) {
+                        if tile.tile_state == TileState::Floor {
+                            tile.number = 0;
+                        }
+                    }
+                }
+            }
+            // clear old walls
+            let neighbours = grid.get_ring(x, y, radius - 1);
+            for ent in neighbours.iter() {
+                if let Some(info) = ent {
+                    if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                        if tile.tile_state == TileState::Wall {
+                            tile.tile_state = TileState::Floor;
+                            sprite.color = tile.get_colour();
+                        }
+                    }
+                }
             }
         }
+        // }
+        // if keyboard.just_pressed(KeyCode::F) {
+
         // set all to floor
-        let neighbours = grid.get_neighbours(x as usize, y as usize);
+        let neighbours = grid.get_ring(x, y, radius);
         for ent in neighbours.iter() {
             if let Some(info) = ent {
                 if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                    tile.tile_state = TileState::Floor;
-                    sprite.color = tile.get_colour();
+                    if tile.tile_state != TileState::Tower {
+                        tile.tile_state = TileState::Floor;
+                        sprite.color = tile.get_colour();
+                    }
                 }
             }
         }
 
         let mut wall_set: HashSet<Coords> = HashSet::new();
-        // now check for the numbers
-        let neighbours = coords.get_neighbour_coords();
+        // get a set of all the walls in neighbours of the neighbours
+        let neighbours = center_coords.get_ring_coords(radius);
         for &c in neighbours.iter() {
             if c.x > 0 && c.y > 0 {
                 if let Some(_info) = grid.get_coords(c) {
-                    // if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                    //     tile.tile_state = TileState::Floor;
-                    //     sprite.color = tile.get_colour();
-                    // }
-
-                    //let mut wall_count = 0;
                     let wall_coords = c.get_neighbour_coords();
                     for &wc in wall_coords.iter() {
                         if let Some(info2) = grid.get_coords(wc) {
                             if let Ok((tile, _sprite)) = q_tiles.get(info2.entity) {
                                 if tile.tile_state == TileState::Wall {
-                                    //wall_count += 1;
                                     wall_set.insert(Coords::new(tile.x as i32, tile.y as i32));
                                 }
                             }
                         }
                     }
-
-                    //println!("wall set count: {:?}", wall_set.len());
-
-                    // let mut random = wall_count;
-                    // if number_total > random {
-
-                    // } else {
-                    //     random = number_total;
-                    // }
-                    // number_total -= usize::min(random, number_total);
-                    // if let Ok((mut tile, _sprite)) = q_tiles.get_mut(info.entity) {
-                    //     tile.number = random;
-                    // }
                 }
             }
         }
-        // println!("final wall set count: {:?}", wall_set.len());
+        // could this just be the 5x5? instead of neighbours of neighbours
 
         let mut random_set = HashSet::new();
-        let number_total = 8;
-
+        let number_total = wall_set.len() as f32 * territory_info.bombs_percent;
+        // pick random coords to have bombs
+        //wall_set.remove(value)
         for (i, c) in wall_set.drain().enumerate() {
-            random_set.insert(c);
-            println!("Bomb at {:?}", c);
-            if i > number_total {
+            if i >= number_total.floor() as usize {
                 break;
             }
+            random_set.insert(c);
+            println!("Bomb at {:?}", c);
         }
         // coordinates of the bombs
+        // for each bomb, check its neighbours
+        // if the neighbour is a floor, increment its count
         for c in random_set.drain() {
             let n = c.get_neighbour_coords();
             for c in n {
@@ -544,16 +577,6 @@ fn make_floor(
                 }
             }
         }
-
-        // set numbers
-        // let neighbours = grid.get_neighbours(x as usize, y as usize);
-        // for ent in neighbours.iter() {
-        //     if let Some(info) = ent {
-        //         if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-        //             tile.number
-        //         }
-        //     }
-        // }
     }
 }
 
@@ -567,5 +590,40 @@ fn update_numbers(
     for (mut sprite, _handle, parent) in q_tile_numbers.iter_mut() {
         let tile = q_tiles.get(parent.get()).unwrap();
         sprite.index = tile.number % 9;
+    }
+}
+
+fn decrement_numbers(
+    mut ev_tower_spawned: EventReader<TowerPlacedEvent>,
+    mut q_tiles: Query<&mut Tile>,
+    grid: Res<Grid>,
+    mut ev_number_filled: EventWriter<NumberFilledEvent>,
+) {
+    for ev in ev_tower_spawned.iter() {
+        // check for number around the tower
+        let neighbours = grid.get_neighbours(ev.x, ev.y);
+        for n in neighbours {
+            if let Some(n) = n {
+                if let Ok(mut tile) = q_tiles.get_mut(n.entity) {
+                    if tile.tile_state == TileState::Floor {
+                        if tile.number > 0 {
+                            tile.number -= 1;
+
+                            // only count as filled if the tower being placed
+                            // caused this to go to 0
+                            // if it started at 0, it's fine
+                            if tile.number == 0 {
+                                println!(
+                                    "Number filled at tower: {}, {} Tile: {}, {}",
+                                    ev.x, ev.y, tile.x, tile.y
+                                );
+                                ev_number_filled.send(NumberFilledEvent);
+                            }
+                        }
+                        
+                    }
+                }
+            }
+        }
     }
 }

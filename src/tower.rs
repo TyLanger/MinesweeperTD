@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    grid::{interaction, ClearSelectionsEvent, Selection, Tile},
+    grid::{interaction, ClearSelectionsEvent, Selection, Tile, Grid, TileState},
     ui::ButtonPressEvent,
 };
 
@@ -23,15 +23,25 @@ impl Plugin for TowerPlugin {
         // Clear interaction
         // Build tower 0
         // Clear button true
-        app.add_system(spawn_tower.before(interaction));
+        app.add_event::<TowerPlacedEvent>()
+            .add_system(spawn_tower.before(interaction));
     }
+}
+
+pub struct TowerPlacedEvent {
+    pub x: usize,
+    pub y: usize,
+    // type of tower?
 }
 
 fn spawn_tower(
     mut commands: Commands,
     mut ev_button_press: EventReader<ButtonPressEvent>,
     mut q_selection: Query<(Entity, &mut Tile), With<Selection>>,
+    grid: Res<Grid>,
+    q_tiles: Query<&Tile, Without<Selection>>,
     mut ev_clear_selection: EventWriter<ClearSelectionsEvent>,
+    mut ev_tower_placed: EventWriter<TowerPlacedEvent>,
 ) {
     for ev in ev_button_press.iter() {
         let mut color = Color::WHITE;
@@ -60,6 +70,21 @@ fn spawn_tower(
         for (ent, mut tile) in q_selection.iter_mut() {
             //commands.entity().add_child(child)
 
+            let mut floor_nearby = false;
+            for neighbour in grid.get_ring(tile.x, tile.y, 1) {
+                if let Some(info) = neighbour {
+                    if let Ok(tile) = q_tiles.get(info.entity) {
+                        if tile.tile_state == TileState::Floor {
+                            floor_nearby = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if !floor_nearby {
+                println!("Tower failed. No floor nearby {}, {}", tile.x, tile.y);
+                continue;
+            }
             let result = tile.try_spawn_tower();
             match result {
                 Ok(_) => {
@@ -75,6 +100,11 @@ fn spawn_tower(
                         })
                         .id();
                     commands.entity(ent).add_child(child);
+                    println!("Placed a tower at {},{}", tile.x, tile.y);
+                    ev_tower_placed.send(TowerPlacedEvent {
+                        x: tile.x,
+                        y: tile.y,
+                    });
                 }
                 Err(e) => {
                     println!("Failed to spawn. {:?}", e);
