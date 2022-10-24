@@ -296,8 +296,8 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberText
                 // #b4dc25
                 //Color::rgb_u8(0xb4, 0xdc, 0x25)
 
-                // #265c42
-                Color::rgb_u8(0x26, 0x5c, 0x42)
+                // #3e8948
+                Color::rgb_u8(0x3e, 0x89, 0x48)
             } else {
                 //Color::SEA_GREEN
                 // #26a630
@@ -311,8 +311,8 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberText
                 // #63c74d
                 // Color::rgb_u8(0x63, 0xc7, 0x4d)
 
-                // #3e8948
-                Color::rgb_u8(0x3e, 0x89, 0x48)
+                // #265c42
+                Color::rgb_u8(0x26, 0x5c, 0x42)
             };
 
             // #e4a672
@@ -678,20 +678,18 @@ fn decrement_numbers(
         for n in neighbours {
             if let Some(n) = n {
                 if let Ok(mut tile) = q_tiles.get_mut(n.entity) {
-                    if tile.tile_state == TileState::Floor {
-                        if tile.number > 0 {
-                            tile.number -= 1;
+                    if tile.tile_state == TileState::Floor && tile.number > 0 {
+                        tile.number -= 1;
 
-                            // only count as filled if the tower being placed
-                            // caused this to go to 0
-                            // if it started at 0, it's fine
-                            if tile.number == 0 {
-                                println!(
-                                    "Number filled at tower: {}, {} Tile: {}, {}",
-                                    ev.x, ev.y, tile.x, tile.y
-                                );
-                                ev_number_filled.send(NumberFilledEvent);
-                            }
+                        // only count as filled if the tower being placed
+                        // caused this to go to 0
+                        // if it started at 0, it's fine
+                        if tile.number == 0 {
+                            println!(
+                                "Number filled at tower: {}, {} Tile: {}, {}",
+                                ev.x, ev.y, tile.x, tile.y
+                            );
+                            ev_number_filled.send(NumberFilledEvent);
                         }
                     }
                 }
