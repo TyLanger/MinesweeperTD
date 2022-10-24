@@ -480,7 +480,7 @@ fn expand_floor(
             }
         }
         // radius goes up += 2
-        if radius > 2 {
+        if radius > 2 && !territory_info.battlements_style {
             // Brute force
             // for (mut tile, mut _sprite) in q_tiles.iter_mut() {
             //     if tile.tile_state == TileState::Floor {
@@ -511,66 +511,139 @@ fn expand_floor(
                 }
             }
         }
-        // }
-        // if keyboard.just_pressed(KeyCode::F) {
+        // battlements
+        if territory_info.battlements_style {
+            // radius starts at 1 for the 3x3
+            let mut wall_set: HashSet<Coords> = HashSet::new();
+            let mut floor_set: HashSet<Coords> = HashSet::new();
+            let inner = center_coords.get_ring_coords(radius);
+            let outer = center_coords.get_ring_coords(radius + 1);
+            if radius > 2 {
+                // clear old
+                let mut old_inner = center_coords.get_ring_coords(radius - 2);
+                let mut old_outer = center_coords.get_ring_coords(radius - 1);
 
-        // set all to floor
-        let neighbours = grid.get_ring(x, y, radius);
-        for ent in neighbours.iter() {
-            if let Some(info) = ent {
-                if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                    if tile.tile_state != TileState::Tower {
+                // only inner will have a number, but not worth separating for that
+                old_inner.append(&mut old_outer);
+
+                // skip towers
+                // set walls to floor
+                // number to 0
+                // color adjustment
+                for c in old_inner {
+                    if let Some(info) = grid.get_coords(c) {
+                        if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                            if tile.tile_state != TileState::Tower {
+                                tile.number = 0;
+                                tile.tile_state = TileState::Floor;
+                                sprite.color = tile.get_colour();
+                            }
+                        }
+                    }
+                }
+            }
+
+            for i in inner {
+                if (i.x + i.y) % 2 == 0 {
+                    floor_set.insert(i);
+                } else {
+                    wall_set.insert(i);
+                }
+            }
+            for o in outer {
+                wall_set.insert(o);
+            }
+
+            let mut random_set = HashSet::new();
+            let number_total = wall_set.len() as f32 * territory_info.bombs_percent;
+
+            for (i, c) in wall_set.drain().enumerate() {
+                if i > number_total.floor() as usize {
+                    break;
+                }
+                random_set.insert(c);
+            }
+
+            // calculate numbers
+            for floor in floor_set {
+                let mut number = 0;
+                let n_coords = floor.get_ring_coords(1);
+                for c in n_coords {
+                    // is it a bomb?
+                    if random_set.contains(&c) {
+                        number += 1;
+                    }
+                }
+                // set the number
+                // and set to floor
+                // and change colour
+                if let Some(info) = grid.get_coords(floor) {
+                    if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                        tile.number = number;
                         tile.tile_state = TileState::Floor;
                         sprite.color = tile.get_colour();
                     }
                 }
             }
-        }
+        } else {
+            // set all to floor
+            let neighbours = grid.get_ring(x, y, radius);
+            for ent in neighbours.iter() {
+                if let Some(info) = ent {
+                    if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                        if tile.tile_state != TileState::Tower {
+                            tile.tile_state = TileState::Floor;
+                            sprite.color = tile.get_colour();
+                        }
+                    }
+                }
+            }
 
-        let mut wall_set: HashSet<Coords> = HashSet::new();
-        // get a set of all the walls in neighbours of the neighbours
-        let neighbours = center_coords.get_ring_coords(radius);
-        for &c in neighbours.iter() {
-            if c.x > 0 && c.y > 0 {
-                if let Some(_info) = grid.get_coords(c) {
-                    let wall_coords = c.get_neighbour_coords();
-                    for &wc in wall_coords.iter() {
-                        if let Some(info2) = grid.get_coords(wc) {
-                            if let Ok((tile, _sprite)) = q_tiles.get(info2.entity) {
-                                if tile.tile_state == TileState::Wall {
-                                    wall_set.insert(Coords::new(tile.x as i32, tile.y as i32));
+            let mut wall_set: HashSet<Coords> = HashSet::new();
+            // get a set of all the walls in neighbours of the neighbours
+            let neighbours = center_coords.get_ring_coords(radius);
+            for &c in neighbours.iter() {
+                if c.x > 0 && c.y > 0 {
+                    if let Some(_info) = grid.get_coords(c) {
+                        let wall_coords = c.get_neighbour_coords();
+                        for &wc in wall_coords.iter() {
+                            if let Some(info2) = grid.get_coords(wc) {
+                                if let Ok((tile, _sprite)) = q_tiles.get(info2.entity) {
+                                    if tile.tile_state == TileState::Wall {
+                                        wall_set.insert(Coords::new(tile.x as i32, tile.y as i32));
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        // could this just be the 5x5? instead of neighbours of neighbours
+            // could this just be the 5x5? instead of neighbours of neighbours
 
-        let mut random_set = HashSet::new();
-        let number_total = wall_set.len() as f32 * territory_info.bombs_percent;
-        // pick random coords to have bombs
-        //wall_set.remove(value)
-        for (i, c) in wall_set.drain().enumerate() {
-            if i >= number_total.floor() as usize {
-                break;
+            let mut random_set = HashSet::new();
+            let number_total = wall_set.len() as f32 * territory_info.bombs_percent;
+            // pick random coords to have bombs
+            //wall_set.remove(value)
+            for (i, c) in wall_set.drain().enumerate() {
+                if i >= number_total.floor() as usize {
+                    break;
+                }
+                random_set.insert(c);
+                println!("Bomb at {:?}", c);
             }
-            random_set.insert(c);
-            println!("Bomb at {:?}", c);
-        }
-        // coordinates of the bombs
-        // for each bomb, check its neighbours
-        // if the neighbour is a floor, increment its count
-        for c in random_set.drain() {
-            let n = c.get_neighbour_coords();
-            for c in n {
-                if let Some(info) = grid.get_coords(c) {
-                    if let Ok((mut tile, _sprite)) = q_tiles.get_mut(info.entity) {
-                        if tile.tile_state == TileState::Floor {
-                            let ct = Coords::new(tile.x as i32, tile.y as i32);
-                            if ct == c {
-                                tile.number += 1;
+            // coordinates of the bombs
+            // for each bomb, check its neighbours
+            // if the neighbour is a floor, increment its count
+            for c in random_set.drain() {
+                let n = c.get_neighbour_coords();
+                for c in n {
+                    if let Some(info) = grid.get_coords(c) {
+                        if let Ok((mut tile, _sprite)) = q_tiles.get_mut(info.entity) {
+                            if tile.tile_state == TileState::Floor {
+                                let ct = Coords::new(tile.x as i32, tile.y as i32);
+                                if ct == c {
+                                    tile.number += 1;
+                                }
                             }
                         }
                     }
@@ -620,7 +693,6 @@ fn decrement_numbers(
                                 ev_number_filled.send(NumberFilledEvent);
                             }
                         }
-                        
                     }
                 }
             }

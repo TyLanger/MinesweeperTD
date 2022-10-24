@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    grid::{interaction, ClearSelectionsEvent, Selection, Tile, Grid, TileState},
+    grid::{interaction, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
     ui::ButtonPressEvent,
 };
 

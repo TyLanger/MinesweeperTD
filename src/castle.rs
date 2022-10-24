@@ -18,6 +18,7 @@ pub struct TerritoryInfo {
     pub x: usize,
     pub y: usize,
     pub bombs_percent: f32,
+    pub battlements_style: bool,
 }
 
 impl TerritoryInfo {
@@ -27,6 +28,7 @@ impl TerritoryInfo {
             x: 10,
             y: 10,
             bombs_percent: 0.5,
+            battlements_style: true,
         }
     }
 }

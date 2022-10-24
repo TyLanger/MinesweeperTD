@@ -16,7 +16,7 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 // Events
 pub struct ButtonPressEvent {
-    pub button_number: u32,
+    pub button_number: usize,
 }
 
 // Components
@@ -24,7 +24,7 @@ pub struct ButtonPressEvent {
 struct ButtonInfo {
     base_text: String,
     hovered_text: String,
-    button_number: u32,
+    button_number: usize,
 }
 
 fn update_buttons(
@@ -83,6 +83,7 @@ fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .with_children(|root| {
+            let button_text = vec!["Green", "Red", "Blue", "Orange"];
             for i in 0..4 {
                 root.spawn_bundle(ButtonBundle {
                     style: Style {
@@ -120,7 +121,7 @@ fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             },
                         ))
                         .insert(ButtonInfo {
-                            base_text: "Click Me".to_string(),
+                            base_text: button_text[i].to_string(),
                             hovered_text: "Build Tower".to_string(),
                             button_number: i,
                         });
