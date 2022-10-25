@@ -40,11 +40,19 @@ pub struct TowerPlacedEvent {
 }
 
 #[derive(Component, Clone)]
-struct Tower {
+pub struct Tower {
     range: f32,
+    pub visuals: TowerVisuals,
     cost: u32,
     bullet: Bullet,
     gun: Gun,
+}
+
+#[derive(Clone)]
+pub struct TowerVisuals {
+    pub name: String,
+    pub color: Color,
+    pub cost: u32,
 }
 
 #[derive(Component, Clone)]
@@ -118,22 +126,50 @@ impl Gun {
 
 // ShotType
 // burst vs spread
-#[derive(Default, Clone)]
+#[derive(Clone)]
 enum MultiShotType {
-    #[default]
-    Spread,
-    Burst,
+    Spread(Spread),
+    Burst(u32),
 }
 
-struct TowerServer {
-    towers: Vec<Tower>,
+impl Default for MultiShotType {
+    fn default() -> Self {
+        MultiShotType::Spread(Spread {
+            num_shots: 2,
+            spread_angle_deg: 20.0,
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Spread {
+    num_shots: u32,
+    spread_angle_deg: f32,
+}
+
+impl Default for Spread {
+    fn default() -> Self {
+        Spread {
+            num_shots: 2,
+            spread_angle_deg: 20.0,
+        }
+    }
+}
+
+pub struct TowerServer {
+    pub towers: Vec<Tower>,
 }
 
 // set up the different towers you can spawn here.
-fn setup_towers(mut tower_server: ResMut<TowerServer>) {
+pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
     let basic_tower = Tower {
         range: 60.0,
         cost: 10,
+        visuals: TowerVisuals {
+            name: "Basic".to_string(),
+            color: Color::GREEN,
+            cost: 10,
+        },
         bullet: Bullet {
             impact_type: ImpactType::Pierce(0),
             damage: 1,
@@ -151,7 +187,7 @@ fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             timer_between: Timer::from_seconds(0.1, true),
             reload_time: 1.5,
             reload_timer: Timer::from_seconds(1.5, false),
-            multi_type: MultiShotType::Burst,
+            multi_type: MultiShotType::Burst(1),
         },
     };
     tower_server.towers.push(basic_tower);
@@ -159,6 +195,11 @@ fn setup_towers(mut tower_server: ResMut<TowerServer>) {
     let shotgun_tower = Tower {
         range: 60.0,
         cost: 10,
+        visuals: TowerVisuals {
+            name: "Shotgun".to_string(),
+            color: Color::RED,
+            cost: 10,
+        },
         bullet: Bullet {
             impact_type: ImpactType::Pierce(0),
             damage: 2,
@@ -173,7 +214,10 @@ fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             timer_between: Timer::from_seconds(0.3, true),
             reload_time: 1.5,
             reload_timer: Timer::from_seconds(1.5, false),
-            multi_type: MultiShotType::Spread,
+            multi_type: MultiShotType::Spread(Spread {
+                num_shots: 3,
+                spread_angle_deg: 20.0,
+            }),
         },
     };
     tower_server.towers.push(shotgun_tower);
@@ -181,6 +225,11 @@ fn setup_towers(mut tower_server: ResMut<TowerServer>) {
     let bomb_tower = Tower {
         range: 100.0,
         cost: 20,
+        visuals: TowerVisuals {
+            name: "Bomb".to_string(),
+            color: Color::BLUE,
+            cost: 20,
+        },
         bullet: Bullet {
             impact_type: ImpactType::Explosion(20.0),
             damage: 3,
@@ -189,13 +238,18 @@ fn setup_towers(mut tower_server: ResMut<TowerServer>) {
                 speed: 100.0,
             },
         },
-        gun: Gun::new(1, 0.5, 2.0, MultiShotType::Burst),
+        gun: Gun::new(1, 0.5, 2.0, MultiShotType::Burst(1)),
     };
     tower_server.towers.push(bomb_tower);
 
     let swarm_tower = Tower {
         range: 100.0,
         cost: 20,
+        visuals: TowerVisuals {
+            name: "Swarm".to_string(),
+            color: Color::ORANGE,
+            cost: 20,
+        },
         bullet: Bullet {
             impact_type: ImpactType::Pierce(3),
             damage: 2,
@@ -204,7 +258,15 @@ fn setup_towers(mut tower_server: ResMut<TowerServer>) {
                 speed: 100.0,
             },
         },
-        gun: Gun::new(4, 0.0, 2.0, MultiShotType::Spread),
+        gun: Gun::new(
+            4,
+            0.0,
+            2.0,
+            MultiShotType::Spread(Spread {
+                num_shots: 4,
+                spread_angle_deg: 30.0,
+            }),
+        ),
     };
     tower_server.towers.push(swarm_tower);
 }
@@ -222,32 +284,10 @@ fn spawn_tower(
     tower_server: Res<TowerServer>,
 ) {
     for ev in ev_button_press.iter() {
-        let mut color = Color::WHITE;
-        match ev.button_number {
-            0 => {
-                println!("Build tower 0");
-                color = Color::GREEN;
-            }
-            1 => {
-                println!("Build tower 1");
-                color = Color::RED;
-            }
-            2 => {
-                println!("Build tower 2");
-                color = Color::BLUE;
-            }
-            3 => {
-                println!("Build tower 3");
-                color = Color::ORANGE;
-            }
-            _ => {}
-        }
-        //println!("Clear button {:}", q_selection.is_empty());
-
         ev_clear_selection.send(ClearSelectionsEvent);
+        let tower = tower_server.towers.get(ev.button_number).unwrap();
+        //for tower in tower_server.towers.iter() {
         for (ent, mut tile) in q_selection.iter_mut() {
-            //commands.entity().add_child(child)
-
             let mut floor_nearby = false;
             for neighbour in grid.get_ring(tile.x, tile.y, 1) {
                 if let Some(info) = neighbour {
@@ -269,14 +309,14 @@ fn spawn_tower(
                     let child = commands
                         .spawn_bundle(SpriteBundle {
                             sprite: Sprite {
-                                color,
+                                color: tower.visuals.color,
                                 custom_size: Some(Vec2::new(15.0, 15.0)),
                                 ..default()
                             },
                             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
                             ..default()
                         })
-                        .insert(tower_server.towers.get(ev.button_number).unwrap().clone())
+                        .insert(tower.clone())
                         .with_children(|tower| {
                             tower.spawn_bundle(MaterialMesh2dBundle {
                                 // #0099db
@@ -301,10 +341,11 @@ fn spawn_tower(
                     });
                 }
                 Err(e) => {
-                    println!("Failed to spawn. {:?}", e);
+                    println!("Failed to spawn, {:?}", e);
                 }
             }
         }
+        //}
     }
 }
 
@@ -329,20 +370,75 @@ fn tower_shoot(
                     target = Target::Direction(Some(mouse.0.extend(0.0) - trans.translation()));
                 }
             }
-            //println!("Spawn bullet at {:?}", trans.translation());
-            commands
-                .spawn_bundle(SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::BLACK,
-                        custom_size: Some(Vec2::new(5.0, 5.0)),
-                        ..default()
-                    },
-                    transform: Transform::from_translation(
-                        trans.translation() + Vec3::new(0.0, 0.0, 0.1),
-                    ),
-                    ..default() // does this clone twice?
-                })
-                .insert(tower.bullet.clone().update_target(target));
+
+            match tower.gun.multi_type {
+                MultiShotType::Spread(spread) => {
+                    let num = spread.num_shots;
+                    let angle = spread.spread_angle_deg;
+                    let front_dir = mouse.0.extend(0.0) - trans.translation();
+                    let spread_angle_rad = angle * 0.0174533;
+                    let spread_half_angle = spread_angle_rad / 2.0;
+                    // let angle_growth = spread_angle / (num as f32);
+                    // let rotation = Vec2::new(spread_half_angle.cos(), spread_half_angle.sin());
+                    // let left_dir = rotation.rotate(front_dir.truncate());
+                    // let spread_target = Target::Direction(Some(left_dir.extend(0.0)));
+
+                    let left_dir =
+                        Vec2::from_angle(-spread_half_angle).rotate(front_dir.truncate());
+                    let right_dir =
+                        Vec2::from_angle(spread_half_angle).rotate(front_dir.truncate());
+                    for i in 0..num {
+                        // 1
+                        // 0.5
+                        // 2
+                        // 0/1, 1/1
+                        // 3
+                        // 0/2, 1/2, 2/2
+                        // 4
+                        // 0/3, 1/3, 2/3, 3/3
+                        let t = if num > 1 {
+                            i as f32 / (num - 1) as f32
+                        } else {
+                            // if only 1 shot, shoot straight instead of to the left
+                            0.5
+                        };
+                        //let t = i as f32 / f32::max(1.0, (num - 1) as f32);
+                        let dir = left_dir.lerp(right_dir, t);
+                        // force into direction mode
+                        let spread_target = Target::Direction(Some(dir.extend(0.0)));
+                        commands
+                            .spawn_bundle(SpriteBundle {
+                                sprite: Sprite {
+                                    color: Color::BLACK,
+                                    custom_size: Some(Vec2::new(5.0, 5.0)),
+                                    ..default()
+                                },
+                                transform: Transform::from_translation(
+                                    trans.translation() + Vec3::new(0.0, 0.0, 0.1),
+                                ),
+                                ..default() // does this clone twice?
+                            })
+                            .insert(tower.bullet.clone().update_target(spread_target));
+                    }
+                }
+                MultiShotType::Burst(num) => {
+                    // one fire event makes multiple bullets over time
+                    // how?
+                    commands
+                        .spawn_bundle(SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::BLACK,
+                                custom_size: Some(Vec2::new(5.0, 5.0)),
+                                ..default()
+                            },
+                            transform: Transform::from_translation(
+                                trans.translation() + Vec3::new(0.0, 0.0, 0.1),
+                            ),
+                            ..default() // does this clone twice?
+                        })
+                        .insert(tower.bullet.clone().update_target(target));
+                }
+            }
         }
     }
 }

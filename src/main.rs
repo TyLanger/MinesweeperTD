@@ -10,6 +10,7 @@ mod castle;
 mod grid;
 mod tower;
 mod ui;
+mod enemy;
 
 fn main() {
     App::new()

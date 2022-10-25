@@ -1,10 +1,12 @@
 use bevy::prelude::*;
 
+use crate::tower::{TowerServer, setup_towers};
+
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_tower_menu)
+        app.add_startup_system(spawn_tower_menu.after(setup_towers))
             .add_event::<ButtonPressEvent>()
             .add_system(update_buttons);
     }
@@ -59,7 +61,7 @@ fn update_buttons(
     }
 }
 
-fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>, tower_server: Res<TowerServer>) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -83,8 +85,11 @@ fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         })
         .with_children(|root| {
-            let button_text = vec!["Green", "Red", "Blue", "Orange"];
-            for i in 0..4 {
+            for (i, tower) in tower_server.towers.iter().enumerate() {
+
+            
+            //let button_text = vec!["Green", "Red", "Blue", "Orange"];
+            //for i in 0..4 {
                 root.spawn_bundle(ButtonBundle {
                     style: Style {
                         size: Size::new(Val::Percent(40.0), Val::Auto),
@@ -121,7 +126,7 @@ fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>) {
                             },
                         ))
                         .insert(ButtonInfo {
-                            base_text: button_text[i].to_string(),
+                            base_text: tower.visuals.name.to_string(),
                             hovered_text: "Build Tower".to_string(),
                             button_number: i,
                         });
