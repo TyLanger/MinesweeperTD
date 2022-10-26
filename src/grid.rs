@@ -172,7 +172,7 @@ impl Grid {
         self.get_xy(x as usize, y as usize)
     }
 
-    fn get_xy(&self, x: usize, y: usize) -> Option<TileInfo> {
+    pub fn get_xy(&self, x: usize, y: usize) -> Option<TileInfo> {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
             return None;
         }

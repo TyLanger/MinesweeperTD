@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::grid::{Grid, Tile};
+
 pub struct CastlePlugin;
 
 impl Plugin for CastlePlugin {
@@ -8,6 +10,7 @@ impl Plugin for CastlePlugin {
             .add_event::<NumberFilledEvent>()
             .add_event::<ExpandAreaEvent>()
             .add_system(startup)
+            .add_system(spawn_castle)
             .add_system(number_filled);
     }
 }
@@ -37,9 +40,41 @@ impl TerritoryInfo {
 pub struct NumberFilledEvent;
 pub struct ExpandAreaEvent;
 
+#[derive(Component)]
+pub struct Castle {
+    health: u32,
+    // colour
+}
+
 fn startup(mut ev_expand: EventWriter<ExpandAreaEvent>, keyboard: Res<Input<KeyCode>>) {
     if keyboard.just_pressed(KeyCode::F) {
         ev_expand.send(ExpandAreaEvent);
+    }
+}
+
+fn spawn_castle(
+    mut commands: Commands,
+    q_tiles: Query<Entity, With<Tile>>,
+    grid: Res<Grid>,
+    keyboard: Res<Input<KeyCode>>,
+) {
+    if keyboard.just_pressed(KeyCode::C) {
+        if let Some(info) = grid.get_xy(10, 10) {
+            if let Ok(ent) = q_tiles.get(info.entity) {
+                let child = commands
+                    .spawn_bundle(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::GOLD,
+                            custom_size: Some(Vec2::splat(25.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_xyz(0.0, 0.0, 0.3),
+                        ..default()
+                    })
+                    .id();
+                commands.entity(ent).add_child(child);
+            }
+        }
     }
 }
 

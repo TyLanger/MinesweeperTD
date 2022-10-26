@@ -5,21 +5,31 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 use bevy::{prelude::*, render::camera::RenderTarget};
+use bevy_rapier2d::prelude::*;
 
 mod castle;
+mod director;
+mod enemy;
 mod grid;
 mod tower;
 mod ui;
-mod enemy;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+        .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(grid::GridPlugin)
         .add_plugin(ui::UiPlugin)
         .add_plugin(tower::TowerPlugin)
         .add_plugin(castle::CastlePlugin)
+        .add_plugin(director::DirectorPlugin)
+        .add_plugin(enemy::EnemyPlugin)
         .insert_resource(MouseWorldPos(Vec2::ONE * 10000.0))
+        .insert_resource(RapierConfiguration {
+            gravity: Vec2::ZERO,
+            ..default()
+        })
         .add_startup_system(setup)
         .add_system(update_mouse_position)
         .run();

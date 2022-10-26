@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::tower::{TowerServer, setup_towers};
+use crate::tower::{setup_towers, TowerServer};
 
 pub struct UiPlugin;
 
@@ -61,7 +61,11 @@ fn update_buttons(
     }
 }
 
-fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>, tower_server: Res<TowerServer>) {
+fn spawn_tower_menu(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    tower_server: Res<TowerServer>,
+) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -86,10 +90,8 @@ fn spawn_tower_menu(mut commands: Commands, asset_server: Res<AssetServer>, towe
         })
         .with_children(|root| {
             for (i, tower) in tower_server.towers.iter().enumerate() {
-
-            
-            //let button_text = vec!["Green", "Red", "Blue", "Orange"];
-            //for i in 0..4 {
+                //let button_text = vec!["Green", "Red", "Blue", "Orange"];
+                //for i in 0..4 {
                 root.spawn_bundle(ButtonBundle {
                     style: Style {
                         size: Size::new(Val::Percent(40.0), Val::Auto),
