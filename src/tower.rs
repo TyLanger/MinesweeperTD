@@ -1,4 +1,5 @@
 use crate::{
+    castle::Castle,
     enemy::Enemy,
     grid::{interaction, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
     ui::ButtonPressEvent,
@@ -144,7 +145,16 @@ impl Tower {
             MultiShotType::Bomb => {
                 let dir = match target {
                     Target::None => todo!(),
-                    Target::Point(p) => p.unwrap().truncate() - self.position.unwrap(),
+                    Target::Point(p) => {
+                        let p = p.unwrap();
+                        let dir_to_center = Vec3::ZERO - p;
+                        // enemies moving towards center
+                        // movement is 50
+                        // bomb takes 1s to travel
+                        // in 1s, they will be 50.0 closer to the center so aim there
+                        let prediction = p + dir_to_center.normalize_or_zero() * 50.0;
+                        prediction.truncate() - self.position.unwrap()
+                    }
                     Target::Follow(_) => todo!(),
                     Target::Direction(d) => d.unwrap().truncate(),
                 };
@@ -307,7 +317,11 @@ pub struct Swarm {
 }
 
 #[derive(Component)]
-struct SwarmComponent {}
+struct SwarmComponent {
+    start_pos: Vec2,
+    end_pos: Vec2,
+    timer: Timer,
+}
 
 #[derive(Component)]
 struct BombComponent {
@@ -480,72 +494,83 @@ fn spawn_tower(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     tower_server: Res<TowerServer>,
+    mut q_castle: Query<&mut Castle>,
 ) {
-    for ev in ev_button_press.iter() {
-        ev_clear_selection.send(ClearSelectionsEvent);
-        let tower = tower_server.towers.get(ev.button_number).unwrap();
-        //for tower in tower_server.towers.iter() {
-        for (ent, mut tile) in q_selection.iter_mut() {
-            let mut floor_nearby = false;
-            for neighbour in grid.get_ring(tile.x, tile.y, 1) {
-                if let Some(info) = neighbour {
-                    if let Ok(tile) = q_tiles.get(info.entity) {
-                        if tile.tile_state == TileState::Floor {
-                            floor_nearby = true;
-                            break;
+    for mut castle in q_castle.iter_mut() {
+        for ev in ev_button_press.iter() {
+            ev_clear_selection.send(ClearSelectionsEvent);
+            let tower = tower_server.towers.get(ev.button_number).unwrap();
+            //for tower in tower_server.towers.iter() {
+            for (ent, mut tile) in q_selection.iter_mut() {
+                let mut floor_nearby = false;
+                for neighbour in grid.get_ring(tile.x, tile.y, 1) {
+                    if let Some(info) = neighbour {
+                        if let Ok(tile) = q_tiles.get(info.entity) {
+                            if tile.tile_state == TileState::Floor {
+                                floor_nearby = true;
+                                break;
+                            }
                         }
                     }
                 }
-            }
-            if !floor_nearby {
-                println!("Tower failed. No floor nearby {}, {}", tile.x, tile.y);
-                continue;
-            }
-            let result = tile.try_spawn_tower();
-            match result {
-                Ok(_) => {
-                    let child = commands
-                        .spawn_bundle(SpriteBundle {
-                            sprite: Sprite {
-                                color: tower.visuals.color,
-                                custom_size: Some(Vec2::new(15.0, 15.0)),
-                                ..default()
-                            },
-                            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
-                            ..default()
-                        })
-                        .insert(tower.clone())
-                        .insert(Collider::ball(tower.range))
-                        .insert(Sensor)
-                        .with_children(|parent| {
-                            parent.spawn_bundle(MaterialMesh2dBundle {
-                                // #0099db
-                                // 30 is an arbitrary range
-                                // these overlap with one another
-                                // if you get enough, it becomes solid
-                                mesh: meshes.add(shape::Circle::new(tower.range).into()).into(),
-                                material: materials.add(ColorMaterial::from(Color::rgba_u8(
-                                    0x00, 0x99, 0xdb, 0x35,
-                                ))),
-                                // set visibility to true when you click on it?
-                                visibility: Visibility { is_visible: false },
-                                ..default()
-                            });
-                        })
-                        .id();
-                    commands.entity(ent).add_child(child);
-                    println!("Placed a tower at {},{}", tile.x, tile.y);
-                    ev_tower_placed.send(TowerPlacedEvent {
-                        x: tile.x,
-                        y: tile.y,
-                    });
+                if !floor_nearby {
+                    println!("Tower failed. No floor nearby {}, {}", tile.x, tile.y);
+                    continue;
                 }
-                Err(e) => {
-                    println!("Failed to spawn, {:?}", e);
+
+                if tower.cost > castle.money {
+                    println!("Tower failed. Too expensive");
+                    continue;
+                }
+
+                let result = tile.try_spawn_tower();
+                match result {
+                    Ok(_) => {
+                        // money -= tower.cost;
+                        castle.money -= tower.cost;
+                        let child = commands
+                            .spawn_bundle(SpriteBundle {
+                                sprite: Sprite {
+                                    color: tower.visuals.color,
+                                    custom_size: Some(Vec2::new(15.0, 15.0)),
+                                    ..default()
+                                },
+                                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+                                ..default()
+                            })
+                            .insert(tower.clone())
+                            .insert(Collider::ball(tower.range))
+                            .insert(Sensor)
+                            .with_children(|parent| {
+                                parent.spawn_bundle(MaterialMesh2dBundle {
+                                    // #0099db
+                                    // 30 is an arbitrary range
+                                    // these overlap with one another
+                                    // if you get enough, it becomes solid
+                                    mesh: meshes.add(shape::Circle::new(tower.range).into()).into(),
+                                    material: materials.add(ColorMaterial::from(Color::rgba_u8(
+                                        0x00, 0x99, 0xdb, 0x35,
+                                    ))),
+                                    // set visibility to true when you click on it?
+                                    visibility: Visibility { is_visible: false },
+                                    ..default()
+                                });
+                            })
+                            .id();
+                        commands.entity(ent).add_child(child);
+                        println!("Placed a tower at {},{}", tile.x, tile.y);
+                        ev_tower_placed.send(TowerPlacedEvent {
+                            x: tile.x,
+                            y: tile.y,
+                        });
+                    }
+                    Err(e) => {
+                        println!("Failed to spawn, {:?}", e);
+                    }
                 }
             }
+            //}
         }
-        //}
     }
 }
 
@@ -700,6 +725,20 @@ fn explosion_damage(
     }
 }
 
+fn swarm_tick(mut q_swarm: Query<(&mut Transform, &mut SwarmComponent)>, time: Res<Time>) {
+    for (mut trans, mut swarm) in q_swarm.iter_mut() {
+        if swarm.timer.tick(time.delta()).just_finished() {
+            // do normal bullet things
+            // spawn a normal bullet?
+            // add bullet component and remove swarm?
+            // need to add collision
+        } else {
+            let t = swarm.timer.percent();
+            trans.translation = Vec2::lerp(swarm.start_pos, swarm.end_pos, t).extend(0.3);
+        }
+    }
+}
+
 fn tower_tick(
     mut commands: Commands,
     rapier_context: Res<RapierContext>,
@@ -794,7 +833,18 @@ fn tower_tick(
                         tower.shoot(&mut commands, target);
                     }
                     Target::Direction(_) => {
-                        let dir = closest_pos - tower_trans.translation();
+                        // enemies moving towards center
+                        // movement is 50
+                        // bomb takes 1s to travel
+                        // in 1s, they will be 50.0 closer to the center so aim there
+                        // other bullets are faster. lead by 5.0 instead
+                        // if I really wanted good aim, would need to scale it by distance to target
+
+                        let dir_to_center = Vec3::ZERO - closest_pos;
+                        let prediction = closest_pos + dir_to_center.normalize_or_zero() * 5.0;
+                        let dir = prediction - tower_trans.translation();
+
+                        //let dir = closest_pos - tower_trans.translation();
                         let target = Target::Direction(Some(dir));
                         tower.shoot(&mut commands, target);
                     }

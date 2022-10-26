@@ -1,6 +1,10 @@
 use bevy::prelude::*;
+use bevy_rapier2d::prelude::*;
 
-use crate::grid::{Grid, Tile};
+use crate::{
+    enemy::Enemy,
+    grid::{Grid, Tile},
+};
 
 pub struct CastlePlugin;
 
@@ -11,7 +15,8 @@ impl Plugin for CastlePlugin {
             .add_event::<ExpandAreaEvent>()
             .add_system(startup)
             .add_system(spawn_castle)
-            .add_system(number_filled);
+            .add_system(number_filled)
+            .add_system(enemy_collision);
     }
 }
 
@@ -42,8 +47,22 @@ pub struct ExpandAreaEvent;
 
 #[derive(Component)]
 pub struct Castle {
-    health: u32,
+    pub health: u32,
     // colour
+    pub money: u32,
+}
+
+impl Castle {
+    pub fn take_damage(&mut self, damage: u32) {
+        if damage >= self.health {
+            self.health = 0;
+            // you lose
+        } else {
+            self.health -= damage;
+        }
+        // send event
+        // let writer: EventWriter<UpdateCastleStatsEvent> = EventWriter<UpdateCastleStatsEvent>::new();
+    }
 }
 
 fn startup(mut ev_expand: EventWriter<ExpandAreaEvent>, keyboard: Res<Input<KeyCode>>) {
@@ -71,6 +90,12 @@ fn spawn_castle(
                         transform: Transform::from_xyz(0.0, 0.0, 0.3),
                         ..default()
                     })
+                    .insert(Castle {
+                        health: 100,
+                        money: 100,
+                    })
+                    .insert(Collider::cuboid(12.5, 12.5))
+                    .insert(Sensor)
                     .id();
                 commands.entity(ent).add_child(child);
             }
@@ -97,5 +122,32 @@ fn number_filled(
         // percent
         info.bombs_percent += 0.1;
         ev_expand.send(ExpandAreaEvent);
+    }
+}
+
+fn enemy_collision(
+    mut commands: Commands,
+    rapier_context: Res<RapierContext>,
+    mut q_castle: Query<(Entity, &mut Castle)>,
+    q_enemies: Query<(Entity, &Enemy)>,
+) {
+    for (castle_ent, mut castle) in q_castle.iter_mut() {
+        // let intersections = rapier_context.intersections_with(castle_ent);
+        for (enemy_ent, _enemy) in q_enemies.iter() {
+            if rapier_context.intersection_pair(castle_ent, enemy_ent) == Some(true) {
+                commands.entity(enemy_ent).despawn_recursive();
+                castle.take_damage(1);
+            }
+        }
+        
+        // is _inter relevant? It was always true when I tested other intersections
+        // so when is it false?
+        // for (a, b, _inter) in intersections {
+        //     let enemy_ent = if a == castle_ent { b } else { a };
+        //     if let Ok((enemy_ent, _enemy)) = q_enemies.get(enemy_ent) {
+        //         commands.entity(enemy_ent).despawn_recursive();
+        //         castle.take_damage(1);
+        //     }
+        // }
     }
 }

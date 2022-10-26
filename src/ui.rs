@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::tower::{setup_towers, TowerServer};
+use crate::{
+    castle::Castle,
+    tower::{setup_towers, TowerServer},
+};
 
 pub struct UiPlugin;
 
@@ -8,7 +11,8 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(spawn_tower_menu.after(setup_towers))
             .add_event::<ButtonPressEvent>()
-            .add_system(update_buttons);
+            .add_system(update_buttons)
+            .add_system(update_castle_stats);
     }
 }
 
@@ -135,4 +139,88 @@ fn spawn_tower_menu(
                 });
             }
         });
+}
+
+fn spawn_castle_stats(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    commands
+        .spawn_bundle(
+            TextBundle::from_sections([
+                TextSection::new(
+                    "Castle Health: ",
+                    TextStyle {
+                        font: font.clone(),
+                        font_size: 25.0,
+                        color: Color::WHITE,
+                    },
+                ),
+                TextSection::from_style(TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::GOLD,
+                }),
+                TextSection::new(
+                    "Gold: ",
+                    TextStyle {
+                        font: font.clone(),
+                        font_size: 25.0,
+                        color: Color::WHITE,
+                    },
+                ),
+                TextSection::from_style(TextStyle {
+                    font: font.clone(),
+                    font_size: 25.0,
+                    color: Color::GOLD,
+                }),
+            ])
+            .with_style(Style {
+                align_self: AlignSelf::FlexEnd,
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    top: Val::Px(5.0),
+                    right: Val::Percent(20.5),
+                    ..default()
+                },
+                // padding: UiRect {
+                //     left: Val::Px(2.0),
+                //     right: Val::Px(2.0),
+                //     top: Val::Px(2.0),
+                //     bottom: Val::Px(2.0),
+                // },
+                // margin: UiRect {
+                //     left: Val::Px(2.0),
+                //     right: Val::Px(2.0),
+                //     top: Val::Px(2.0),
+                //     bottom: Val::Px(2.0),
+                //     //..default()
+                // },
+                ..default()
+            }),
+        )
+        .insert(CastleUi);
+}
+
+// pub struct UpdateCastleStatsEvent {
+//     health: u32,
+//     money: u32,
+// }
+
+#[derive(Component)]
+struct CastleUi;
+
+fn update_castle_stats(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    q_castle: Query<&Castle>,
+    mut q_castle_ui: Query<&mut Text, With<CastleUi>>,
+) {
+    for castle in q_castle.iter() {
+        if q_castle_ui.is_empty() {
+            spawn_castle_stats(&mut commands, &asset_server);
+        }
+        for mut text in q_castle_ui.iter_mut() {
+            text.sections[1].value = format!("{:}\n", castle.health);
+            text.sections[3].value = format!("{:}\n", castle.money);
+        }
+    }
 }
