@@ -7,7 +7,7 @@ pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(movement);
+        app.add_system(movement).add_system(tick_enemy);
     }
 }
 
@@ -21,7 +21,7 @@ impl Enemy {
         Enemy { health: 5 }
     }
 
-    fn take_damage(&mut self, damage: u32) {
+    pub fn take_damage(&mut self, damage: u32) {
         if damage > self.health {
             self.health = 0;
         } else {
@@ -66,6 +66,14 @@ fn movement(mut q_enemies: Query<(&mut Transform, &Movement, &Enemy)>, time: Res
             }
             Target::Follow(_) => todo!(),
             Target::Direction(_) => todo!(),
+        }
+    }
+}
+
+fn tick_enemy(mut commands: Commands, q_enemies: Query<(Entity, &Enemy)>) {
+    for (entity, enemy) in q_enemies.iter() {
+        if enemy.health == 0 {
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

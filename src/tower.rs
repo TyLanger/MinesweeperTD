@@ -30,10 +30,12 @@ impl Plugin for TowerPlugin {
             .insert_resource(TowerServer { towers: Vec::new() })
             .add_startup_system(setup_towers)
             .add_system(spawn_tower.before(interaction))
-            .add_system(update_tower_position)
+            .add_system(update_tower_position.before(tower_tick))
             .add_system(tower_tick)
-            .add_system(tower_shoot)
-            .add_system(move_bullets);
+            
+            .add_system(move_bullets)
+            .add_system(bullet_collision.after(move_bullets))
+            .add_system(bullet_tick.after(bullet_collision));
     }
 }
 
@@ -111,7 +113,10 @@ impl Tower {
                             ),
                             ..default() // does this clone twice?
                         })
-                        .insert(self.bullet.clone().update_target(spread_target));
+                        .insert(self.bullet.clone().update_target(spread_target))
+                        .insert(Collider::ball(5.0))
+                        .insert(RigidBody::Dynamic)
+                        .insert(Sensor);
                 }
             }
             MultiShotType::Burst(num) => {
@@ -130,7 +135,10 @@ impl Tower {
                         ),
                         ..default() // does this clone twice?
                     })
-                    .insert(self.bullet.clone().update_target(target));
+                    .insert(self.bullet.clone().update_target(target))
+                    .insert(Collider::ball(5.0))
+                    .insert(RigidBody::Dynamic)
+                    .insert(Sensor);
             }
         }
     }
@@ -157,9 +165,19 @@ struct Bullet {
     impact_type: ImpactType,
     damage: u32,
     movement: Movement,
+    lifetime: Timer,
 }
 
 impl Bullet {
+    fn new(impact_type: ImpactType, damage: u32, movement: Movement) -> Self {
+        Bullet {
+            impact_type,
+            damage,
+            movement,
+            lifetime: Timer::from_seconds(5.0, false),
+        }
+    }
+
     fn update_target(&mut self, target: Target) -> Self {
         self.movement.target = target;
         self.clone()
@@ -282,27 +300,27 @@ pub struct TowerServer {
 // set up the different towers you can spawn here.
 pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
     let basic_tower = Tower {
-        range: 60.0,
+        range: 80.0,
         cost: 10,
         visuals: TowerVisuals {
             name: "Basic".to_string(),
             color: Color::GREEN,
             cost: 10,
         },
-        bullet: Bullet {
-            impact_type: ImpactType::Pierce(0),
-            damage: 1,
-            movement: Movement {
+        bullet: Bullet::new(
+            ImpactType::Pierce(0),
+            1,
+            Movement {
                 // should I even set a default?
                 // when the bullet is spawned, it should change this
                 // target: Target::Point(Vec3::ZERO),
                 target: Target::Direction(None),
                 speed: 100.0,
             },
-        },
+        ),
         gun: Gun {
             clip_size: 1,
-            time_between_shots: 0.1,
+            time_between_shots: 0.2,
             timer_between: Timer::from_seconds(0.1, true),
             reload_time: 1.5,
             reload_timer: Timer::from_seconds(1.5, false),
@@ -314,21 +332,21 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
     tower_server.towers.push(basic_tower);
 
     let shotgun_tower = Tower {
-        range: 60.0,
+        range: 80.0,
         cost: 10,
         visuals: TowerVisuals {
             name: "Shotgun".to_string(),
             color: Color::RED,
             cost: 10,
         },
-        bullet: Bullet {
-            impact_type: ImpactType::Pierce(0),
-            damage: 2,
-            movement: Movement {
+        bullet: Bullet::new(
+            ImpactType::Pierce(0),
+            2,
+            Movement {
                 target: Target::Direction(None),
                 speed: 100.0,
             },
-        },
+        ),
         gun: Gun {
             clip_size: 2,
             time_between_shots: 0.3,
@@ -337,7 +355,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             reload_timer: Timer::from_seconds(1.5, false),
             multi_type: MultiShotType::Spread(Spread {
                 num_shots: 3,
-                spread_angle_deg: 20.0,
+                spread_angle_deg: 15.0,
             }),
             state: ShootState::Ready,
         },
@@ -353,14 +371,14 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             color: Color::BLUE,
             cost: 20,
         },
-        bullet: Bullet {
-            impact_type: ImpactType::Explosion(20.0),
-            damage: 3,
-            movement: Movement {
+        bullet: Bullet::new(
+            ImpactType::Explosion(20.0),
+            3,
+            Movement {
                 target: Target::Point(None),
                 speed: 100.0,
             },
-        },
+        ),
         gun: Gun::new(1, 0.5, 2.0, MultiShotType::Burst(1)),
         position: None,
     };
@@ -374,21 +392,21 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             color: Color::ORANGE,
             cost: 20,
         },
-        bullet: Bullet {
-            impact_type: ImpactType::Pierce(3),
-            damage: 2,
-            movement: Movement {
+        bullet: Bullet::new(
+            ImpactType::Pierce(3),
+            2,
+            Movement {
                 target: Target::Point(None),
                 speed: 100.0,
             },
-        },
+        ),
         gun: Gun::new(
             4,
             1.0,
             2.0,
             MultiShotType::Spread(Spread {
                 num_shots: 4,
-                spread_angle_deg: 30.0,
+                spread_angle_deg: 20.0,
             }),
         ),
         position: None,
@@ -482,99 +500,7 @@ fn update_tower_position(mut q_towers: Query<(&mut Tower, &GlobalTransform), Add
     }
 }
 
-// towers are a child. So their transform is 0,0
-// need to use global to get their real pos (their parent's pos)
-fn tower_shoot(
-    mut commands: Commands,
-    q_towers: Query<(&GlobalTransform, &Tower)>,
-    keyboard: Res<Input<KeyCode>>,
-    mouse: Res<MouseWorldPos>,
-) {
-    if keyboard.just_pressed(KeyCode::T) {
-        for (trans, tower) in q_towers.iter() {
-            let mut target = Target::None;
-            match tower.bullet.movement.target {
-                Target::None => todo!(),
-                Target::Point(_) => {
-                    target = Target::Point(Some(mouse.0.extend(0.0)));
-                }
-                Target::Follow(_) => todo!(),
-                Target::Direction(_) => {
-                    target = Target::Direction(Some(mouse.0.extend(0.0) - trans.translation()));
-                }
-            }
 
-            match tower.gun.multi_type {
-                MultiShotType::Spread(spread) => {
-                    let num = spread.num_shots;
-                    let angle = spread.spread_angle_deg;
-                    let front_dir = mouse.0.extend(0.0) - trans.translation();
-                    let spread_angle_rad = angle * 0.0174533;
-                    let spread_half_angle = spread_angle_rad / 2.0;
-                    // let angle_growth = spread_angle / (num as f32);
-                    // let rotation = Vec2::new(spread_half_angle.cos(), spread_half_angle.sin());
-                    // let left_dir = rotation.rotate(front_dir.truncate());
-                    // let spread_target = Target::Direction(Some(left_dir.extend(0.0)));
-
-                    let left_dir =
-                        Vec2::from_angle(-spread_half_angle).rotate(front_dir.truncate());
-                    let right_dir =
-                        Vec2::from_angle(spread_half_angle).rotate(front_dir.truncate());
-                    for i in 0..num {
-                        // 1
-                        // 0.5
-                        // 2
-                        // 0/1, 1/1
-                        // 3
-                        // 0/2, 1/2, 2/2
-                        // 4
-                        // 0/3, 1/3, 2/3, 3/3
-                        let t = if num > 1 {
-                            i as f32 / (num - 1) as f32
-                        } else {
-                            // if only 1 shot, shoot straight instead of to the left
-                            0.5
-                        };
-                        //let t = i as f32 / f32::max(1.0, (num - 1) as f32);
-                        let dir = left_dir.lerp(right_dir, t);
-                        // force into direction mode
-                        let spread_target = Target::Direction(Some(dir.extend(0.0)));
-                        commands
-                            .spawn_bundle(SpriteBundle {
-                                sprite: Sprite {
-                                    color: Color::BLACK,
-                                    custom_size: Some(Vec2::new(5.0, 5.0)),
-                                    ..default()
-                                },
-                                transform: Transform::from_translation(
-                                    trans.translation() + Vec3::new(0.0, 0.0, 0.1),
-                                ),
-                                ..default() // does this clone twice?
-                            })
-                            .insert(tower.bullet.clone().update_target(spread_target));
-                    }
-                }
-                MultiShotType::Burst(num) => {
-                    // one fire event makes multiple bullets over time
-                    // how?
-                    commands
-                        .spawn_bundle(SpriteBundle {
-                            sprite: Sprite {
-                                color: Color::BLACK,
-                                custom_size: Some(Vec2::new(5.0, 5.0)),
-                                ..default()
-                            },
-                            transform: Transform::from_translation(
-                                trans.translation() + Vec3::new(0.0, 0.0, 0.1),
-                            ),
-                            ..default() // does this clone twice?
-                        })
-                        .insert(tower.bullet.clone().update_target(target));
-                }
-            }
-        }
-    }
-}
 
 fn move_bullets(mut q_bullets: Query<(&mut Transform, &Bullet)>, time: Res<Time>) {
     for (mut trans, bullet) in q_bullets.iter_mut() {
@@ -595,6 +521,55 @@ fn move_bullets(mut q_bullets: Query<(&mut Transform, &Bullet)>, time: Res<Time>
                         d.normalize_or_zero() * time.delta_seconds() * bullet.movement.speed;
                 }
             }
+        }
+    }
+}
+
+fn bullet_tick(
+    mut commands: Commands,
+    mut q_bullets: Query<(Entity, &mut Bullet)>,
+    time: Res<Time>,
+) {
+    for (entity, mut bullet) in q_bullets.iter_mut() {
+        if bullet.lifetime.tick(time.delta()).just_finished() {
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+}
+
+fn bullet_collision(
+    mut commands: Commands,
+    rapier_context: Res<RapierContext>,
+    q_bullets: Query<(Entity, &Bullet)>,
+    mut q_enemies: Query<(Entity, &mut Enemy)>,
+) {
+    for (bullet_ent, bullet) in q_bullets.iter() {
+        let collisions = rapier_context.intersections_with(bullet_ent);
+        // let enemies_hit = collisions
+        //     .map(|(a, b, inter)| if a == bullet_ent {b} else {a})
+        //     .filter(|e| q_enemies.contains(*e))
+        //     .map(|e| {
+        //         let (entity, mut enemy) = q_enemies.get_mut(e).unwrap();
+        //         enemy.take_damage(bullet.damage);
+        //         // (entity, enemy)
+        //     });
+
+        // for ent in enemies_hit {
+        //     if let Ok((e_ent, mut enemy)) = q_enemies.get_mut(ent) {
+        //         enemy.take_damage(bullet.damage);
+        //     }
+        // }
+        let mut destroy_bullet = false;
+        for (a, b, _) in collisions {
+            let enemy_ent = if a == bullet_ent { b } else { a };
+
+            if let Ok((_e_ent, mut enemy)) = q_enemies.get_mut(enemy_ent) {
+                enemy.take_damage(bullet.damage);
+                destroy_bullet = true;
+            }
+        }
+        if destroy_bullet {
+            commands.entity(bullet_ent).despawn_recursive();
         }
     }
 }
@@ -625,16 +600,12 @@ fn tower_tick(
                 // many -> one
                 .min_by_key(|(_e, pos)| {
                     // let (_ent, trans) = q_enemies.get(*b).unwrap();
-                    FloatOrd(
-                        tower_trans
-                            .translation()
-                            .distance_squared(*pos),
-                    )
+                    FloatOrd(tower_trans.translation().distance_squared(*pos))
                 });
-                // .map(|b| {
-                //     let (e, pos) = q_enemies.get(b).unwrap();
-                //     (e, pos.translation())
-                // });
+            // .map(|b| {
+            //     let (e, pos) = q_enemies.get(b).unwrap();
+            //     (e, pos.translation())
+            // });
 
             // doesn't work for old enemies
             // if a tower is spawned after enemies, it won't shoot.
