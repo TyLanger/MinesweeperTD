@@ -32,10 +32,11 @@ impl Plugin for TowerPlugin {
             .add_system(spawn_tower.before(interaction))
             .add_system(update_tower_position.before(tower_tick))
             .add_system(tower_tick)
-            
             .add_system(move_bullets)
             .add_system(bullet_collision.after(move_bullets))
-            .add_system(bullet_tick.after(bullet_collision));
+            .add_system(bullet_tick.after(bullet_collision))
+            .add_system(bomb_tick)
+            .add_system(explosion_damage);
     }
 }
 
@@ -140,6 +141,41 @@ impl Tower {
                     .insert(RigidBody::Dynamic)
                     .insert(Sensor);
             }
+            MultiShotType::Bomb => {
+                let dir = match target {
+                    Target::None => todo!(),
+                    Target::Point(p) => p.unwrap().truncate() - self.position.unwrap(),
+                    Target::Follow(_) => todo!(),
+                    Target::Direction(d) => d.unwrap().truncate(),
+                };
+                let mag = dir.length();
+
+                let start_dir = dir.lerp(Vec2::Y * mag * 5.0, 0.7);
+                let end_dir = dir - start_dir;
+
+                let start_pos = self.position.unwrap();
+
+                commands
+                    .spawn_bundle(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::BLACK,
+                            custom_size: Some(Vec2::new(8.0, 8.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(
+                            self.position.unwrap().extend(0.2),
+                            // trans.translation() + Vec3::new(0.0, 0.0, 0.1),
+                        ),
+                        ..default() // does this clone twice?
+                    })
+                    .insert(BombComponent {
+                        start_pos,
+                        start_dir,
+                        end_dir,
+                        timer: Timer::from_seconds(1.0, false),
+                    });
+            }
+            MultiShotType::Swarm(_) => {}
         }
     }
 
@@ -172,6 +208,7 @@ impl Bullet {
     fn new(impact_type: ImpactType, damage: u32, movement: Movement) -> Self {
         Bullet {
             impact_type,
+
             damage,
             movement,
             lifetime: Timer::from_seconds(5.0, false),
@@ -260,6 +297,24 @@ impl Gun {
 enum MultiShotType {
     Spread(Spread),
     Burst(u32),
+    Bomb,
+    Swarm(Swarm),
+}
+
+#[derive(Clone)]
+pub struct Swarm {
+    num: u32,
+}
+
+#[derive(Component)]
+struct SwarmComponent {}
+
+#[derive(Component)]
+struct BombComponent {
+    start_pos: Vec2,
+    start_dir: Vec2,
+    end_dir: Vec2,
+    timer: Timer,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -379,7 +434,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
                 speed: 100.0,
             },
         ),
-        gun: Gun::new(1, 0.5, 2.0, MultiShotType::Burst(1)),
+        gun: Gun::new(1, 0.5, 2.0, MultiShotType::Bomb),
         position: None,
     };
     tower_server.towers.push(bomb_tower);
@@ -500,8 +555,6 @@ fn update_tower_position(mut q_towers: Query<(&mut Tower, &GlobalTransform), Add
     }
 }
 
-
-
 fn move_bullets(mut q_bullets: Query<(&mut Transform, &Bullet)>, time: Res<Time>) {
     for (mut trans, bullet) in q_bullets.iter_mut() {
         match bullet.movement.target {
@@ -570,6 +623,79 @@ fn bullet_collision(
         }
         if destroy_bullet {
             commands.entity(bullet_ent).despawn_recursive();
+        }
+    }
+}
+
+fn bomb_tick(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut q_bombs: Query<(Entity, &mut Transform, &mut BombComponent)>,
+    time: Res<Time>,
+) {
+    for (ent, mut trans, mut bomb) in q_bombs.iter_mut() {
+        if bomb.timer.tick(time.delta()).just_finished() {
+            commands
+                .spawn_bundle(MaterialMesh2dBundle {
+                    mesh: meshes.add(shape::Circle::new(30.0).into()).into(),
+                    material: materials.add(ColorMaterial::from(Color::ORANGE)),
+                    transform: Transform::from_translation(trans.translation),
+                    ..default()
+                })
+                .insert(Collider::ball(30.0))
+                .insert(Sensor)
+                .insert(Explosion::new());
+            commands.entity(ent).despawn_recursive();
+        }
+
+        let t = bomb.timer.percent();
+
+        let start_lerp = Vec2::lerp(Vec2::ZERO, bomb.start_dir, t);
+        let end_lerp = Vec2::lerp(Vec2::ZERO, bomb.end_dir, t);
+
+        let pos = Vec2::lerp(start_lerp, start_lerp + end_lerp, t);
+        trans.translation = (bomb.start_pos + pos).extend(0.3);
+    }
+}
+
+#[derive(Component)]
+struct Explosion {
+    damage: u32,
+    danger_timer: Timer,
+    lifetime_timer: Timer,
+}
+
+impl Explosion {
+    fn new() -> Self {
+        Explosion {
+            damage: 5,
+            danger_timer: Timer::from_seconds(0.15, false),
+            lifetime_timer: Timer::from_seconds(0.3, false),
+        }
+    }
+}
+
+fn explosion_damage(
+    mut commands: Commands,
+    rapier_context: Res<RapierContext>,
+    mut q_bombs: Query<(Entity, &mut Explosion)>,
+    mut q_enemies: Query<(Entity, &mut Enemy)>,
+    time: Res<Time>,
+) {
+    for (bomb_ent, mut bomb) in q_bombs.iter_mut() {
+        for (enemy_ent, mut enemy) in q_enemies.iter_mut() {
+            if rapier_context.intersection_pair(bomb_ent, enemy_ent) == Some(true) {
+                enemy.take_damage(bomb.damage);
+            }
+        }
+        // remove the art after 0.3s
+        if bomb.lifetime_timer.tick(time.delta()).just_finished() {
+            commands.entity(bomb_ent).despawn_recursive();
+        }
+        // remove the danger after 0.15s
+        if bomb.danger_timer.tick(time.delta()).just_finished() {
+            commands.entity(bomb_ent).remove::<Collider>();
         }
     }
 }
