@@ -33,27 +33,25 @@ impl Enemy {
     }
 }
 
-pub fn spawn_enemy(commands: &mut Commands, num: u32) {
-    for i in 0..num {
-        commands
-            .spawn_bundle(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::CRIMSON,
-                    custom_size: Some(Vec2::splat(20.0)),
-                    ..default()
-                },
-                transform: Transform::from_xyz(400.0, 25.0 * i as f32, 0.2),
+pub fn spawn_enemy(commands: &mut Commands, position: Vec3) {
+    commands
+        .spawn_bundle(SpriteBundle {
+            sprite: Sprite {
+                color: Color::CRIMSON,
+                custom_size: Some(Vec2::splat(20.0)),
                 ..default()
-            })
-            .insert(Enemy::new())
-            .insert(Movement {
-                target: Target::Point(Some(Vec3::ZERO)),
-                speed: 50.0,
-            })
-            .insert(Collider::cuboid(10.0, 10.0))
-            .insert(Sensor)
-            .insert(RigidBody::Dynamic);
-    }
+            },
+            transform: Transform::from_translation(position),
+            ..default()
+        })
+        .insert(Enemy::new())
+        .insert(Movement {
+            target: Target::Point(Some(Vec3::ZERO)),
+            speed: 50.0,
+        })
+        .insert(Collider::cuboid(10.0, 10.0))
+        .insert(Sensor)
+        .insert(RigidBody::Dynamic);
 }
 
 fn movement(mut q_enemies: Query<(&mut Transform, &Movement, &Enemy)>, time: Res<Time>) {

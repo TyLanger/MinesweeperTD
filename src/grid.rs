@@ -189,7 +189,7 @@ pub struct Grid {
 
 impl Grid {
     pub fn get_vec2(&self, pos: Vec2) -> Option<TileInfo> {
-        let x = (((GRID_WIDTH-1) as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.x) / TILE_SIZE;
+        let x = (((GRID_WIDTH - 1) as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.x) / TILE_SIZE;
         let y = ((GRID_HEIGHT as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.y) / TILE_SIZE;
 
         if x < 0.0 || y < 0.0 {
@@ -448,13 +448,12 @@ pub fn interaction(
         // I wanted clear_selection, the one that removes the Selection component
         // but also messes up if it goes tower, interaction, clear_selection
         // needs to go clear, this, tower
-        
+
         // update_buttons, spawn_tower, clear
         // is the correct order
         ev_clear.send(ClearSelectionsEvent);
-
     }
-    
+
     if right_clicked {
         ev_clear.send(ClearSelectionsEvent);
     }

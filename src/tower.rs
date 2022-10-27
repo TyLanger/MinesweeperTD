@@ -2,7 +2,7 @@ use crate::{
     castle::Castle,
     enemy::Enemy,
     grid::{clear_selection, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
-    ui::{ButtonPressEvent, update_buttons},
+    ui::{update_buttons, ButtonPressEvent},
     GameState,
 };
 use bevy::utils::Duration;
@@ -215,7 +215,7 @@ impl Bullet {
 
             damage,
             movement,
-            lifetime: Timer::from_seconds(5.0, false),
+            lifetime: Timer::from_seconds(3.0, false),
         }
     }
 
@@ -442,7 +442,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
                 speed: 100.0,
             },
         ),
-        gun: Gun::new(1, 0.5, 2.0, MultiShotType::Bomb),
+        gun: Gun::new(1, 1.5, 2.0, MultiShotType::Bomb),
         position: None,
     };
     tower_server.towers.push(bomb_tower);
@@ -710,7 +710,7 @@ struct Explosion {
 impl Explosion {
     fn new() -> Self {
         Explosion {
-            damage: 5,
+            damage: 4,
             danger_timer: Timer::from_seconds(0.15, false),
             lifetime_timer: Timer::from_seconds(0.3, false),
         }
