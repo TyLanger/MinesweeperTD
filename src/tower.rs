@@ -384,7 +384,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
         gun: Gun {
             clip_size: 1,
             time_between_shots: 0.3,
-            timer_between: Timer::from_seconds(0.4, true),
+            timer_between: Timer::from_seconds(0.3, true),
             reload_time: 1.5,
             reload_timer: Timer::from_seconds(1.5, false),
             multi_type: MultiShotType::Burst(1),

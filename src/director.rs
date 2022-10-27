@@ -19,17 +19,19 @@ impl Plugin for DirectorPlugin {
     }
 }
 
-struct SpawnInfo {
-    wave_timer: Timer,
-    batch_size: u32,
-    difficulty: u32,
-    next_strat: SpawnStrat,
-    positions: Vec<Vec2>,
+pub struct SpawnInfo {
+    duration: f32,
+    pub wave_timer: Timer,
+    pub batch_size: u32,
+    pub difficulty: u32,
+    pub next_strat: SpawnStrat,
+    pub positions: Vec<Vec2>,
 }
 
 impl SpawnInfo {
     fn new() -> Self {
         SpawnInfo {
+            duration: 10.0,
             wave_timer: Timer::from_seconds(10.0, true),
             batch_size: 5,
             difficulty: 0,
@@ -37,10 +39,14 @@ impl SpawnInfo {
             positions: get_spread_positions(10),
         }
     }
+
+    pub fn get_time(&self) -> f32 {
+        self.duration - self.wave_timer.elapsed_secs()
+    }
 }
 
 #[derive(Debug)]
-enum SpawnStrat {
+pub enum SpawnStrat {
     Burst,
     Spread,
     Line,
@@ -105,8 +111,9 @@ fn upgrade_director(
         // once it runs the 6th time, that's the boss round. Survive and you win.
         println!("Enemies are harder!");
         spawn_info.difficulty += 1;
+        spawn_info.duration = 10.0 - (spawn_info.difficulty / 2) as f32;
         spawn_info.wave_timer =
-            Timer::from_seconds(10.0 - (spawn_info.difficulty / 2) as f32, true);
+            Timer::from_seconds(spawn_info.duration, true);
     }
 }
 

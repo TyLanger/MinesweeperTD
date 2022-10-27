@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{castle::Castle, loading::FontAssets, tower::TowerServer, GameState};
+use crate::{castle::Castle, loading::FontAssets, tower::TowerServer, GameState, director::SpawnInfo};
 
 pub struct UiPlugin;
 
@@ -26,7 +26,8 @@ impl Plugin for UiPlugin {
             SystemSet::on_update(GameState::Playing)
                 .with_system(update_buttons)
                 .with_system(update_castle_stats)
-                .with_system(update_tower_info_panel),
+                .with_system(update_tower_info_panel)
+                .with_system(update_director_panel),
         );
         // .add_startup_system(spawn_tower_menu.after(setup_towers))
         // app.add_event::<ButtonPressEvent>()
@@ -366,20 +367,19 @@ fn update_tower_info_panel(
 
 fn spawn_director_menu(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    tower_server: Res<TowerServer>,
+    fonts: Res<FontAssets>,
 ) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
-                position_type: PositionType::Absolute,
-                position: UiRect {
-                    left: Val::Px(0.0),
-                    ..default()
-                },
+                // position_type: PositionType::Absolute,
+                // position: UiRect {
+                //     left: Val::Px(0.0),
+                //     ..default()
+                // },
                 size: Size::new(Val::Percent(20.0), Val::Percent(100.0)),
                 // left-right
-                justify_content: JustifyContent::SpaceEvenly,
+                justify_content: JustifyContent::Center,
                 // up-down
                 align_content: AlignContent::Center,
                 //align_items: AlignItems::FlexEnd,
@@ -392,61 +392,135 @@ fn spawn_director_menu(
             ..default()
         })
         .with_children(|root| {
-            for (i, tower) in tower_server.towers.iter().enumerate() {
-                //let button_text = vec!["Green", "Red", "Blue", "Orange"];
-                //for i in 0..4 {
-                root.spawn_bundle(ButtonBundle {
-                    style: Style {
-                        size: Size::new(Val::Percent(40.0), Val::Auto),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        // coloured box around text
-                        padding: UiRect {
-                            left: Val::Px(2.0),
-                            right: Val::Px(2.0),
-                            top: Val::Px(2.0),
-                            bottom: Val::Px(2.0),
+            
+            root.spawn_bundle(
+                TextBundle::from_sections([
+                    // fields
+                    // SpawnInfo {
+                    //     wave_timer: todo!(),
+                    //     batch_size: todo!(),
+                    //     difficulty: todo!(),
+                    //     next_strat: todo!(),
+                    //     positions: todo!(),
+                    // }
+
+                    TextSection::new(
+                        "Director\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
                         },
-                        // whitespace around the button
-                        margin: UiRect {
-                            left: Val::Px(2.0),
-                            right: Val::Px(2.0),
-                            top: Val::Px(2.0),
-                            bottom: Val::Px(2.0),
-                            //..default()
+                    ),
+                    TextSection::new(
+                        "Will spawn ",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
                         },
-                        ..default()
-                    },
-                    color: NORMAL_BUTTON.into(),
+                    ),
+                    TextSection::new(
+                        "15 enemies\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            // #fee761
+                            color: Color::rgb_u8(0xf3, 0xe7, 0x61),
+                        },
+                    ),
+                    TextSection::new(
+                        "in a ",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    TextSection::new(
+                        "Burst\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            // #0099db
+                            color: Color::rgb_u8(0x00, 0x99, 0xdb),
+                        },
+                    ),
+                    TextSection::new(
+                        "in ",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    TextSection::new(
+                        "5.5s\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            // #0099db
+                            color: Color::rgb_u8(0x00, 0x99, 0xdb),
+                        },
+                    ),
+                ])
+                .with_style(Style {
+                    // justify_content: JustifyContent::Center,
+                    // align_items: AlignItems::Center,
+                    align_self: AlignSelf::Center,
+                    // whitespace around the button
+                    // margin: UiRect {
+                    //     // left: Val::Px(2.0),
+                    //     // right: Val::Px(2.0),
+                    //     // top: Val::Px(2.0),
+                    //     //bottom: Val::Px(30.0),
+                    //     ..default()
+                    // },
+                    // position_type: PositionType::Absolute,
+                    // position: UiRect {
+                    //     bottom: Val::Percent(5.0),
+                    //     right: Val::Percent(20.5),
+                    //     ..default()
+                    // },
                     ..default()
-                })
-                .with_children(|button_base| {
-                    button_base
-                        .spawn_bundle(TextBundle::from_section(
-                            "Button",
-                            TextStyle {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                                font_size: 20.0,
-                                color: Color::rgb(0.9, 0.9, 0.9),
-                            },
-                        ))
-                        .insert(ButtonInfo {
-                            base_text: tower.visuals.name.to_string(),
-                            hovered_text: "Build Tower".to_string(),
-                            button_number: i,
-                        });
-                });
-            }
+                    }),
+                )
+                .insert(DirectorInfoPanel);
         });
+}
+
+#[derive(Component)]
+struct DirectorInfoPanel;
+
+fn update_director_panel(
+    mut q_ui: Query<&mut Text, With<DirectorInfoPanel>>,
+    spawn_info: Res<SpawnInfo>,
+) {
+    for mut text in q_ui.iter_mut() {
+        
+
+        // 0 Director
+        // 1 Will spawn
+        // 2 15 enemies
+        // 3 in a 
+        // 4 Burst
+        // 5 in
+        // 6 5.5s
+        text.sections[2].value = format!("{:} enemies\n", spawn_info.batch_size);
+        text.sections[4].value = format!("{:?}\n", spawn_info.next_strat);
+        text.sections[6].value = format!("{:.1}s\n", spawn_info.get_time());
+    }
 }
 
 fn spawn_castle_stats(
     commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
+    // asset_server: &Res<AssetServer>,
+    fonts: &Res<FontAssets>,
     health: u32,
     money: u32,
 ) {
-    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    // let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    let font = fonts.fira_sans.clone();
     commands
         .spawn_bundle(
             TextBundle::from_sections([
@@ -483,14 +557,22 @@ fn spawn_castle_stats(
                     },
                 ),
             ])
+            .with_text_alignment(TextAlignment::TOP_RIGHT)
             .with_style(Style {
-                align_self: AlignSelf::FlexEnd,
+                // align_self: AlignSelf::FlexEnd,
+                // justify_content: JustifyContent::Center,
                 position_type: PositionType::Absolute,
                 position: UiRect {
                     top: Val::Px(5.0),
+                    // left: Val::Percent(30.0),
+                    // right: Val::Percent(50.0),
+                    // right: Val::Px(5.0),
                     right: Val::Percent(20.5),
+                    // left: Val::Percent(81.5),
+                    
                     ..default()
                 },
+                // flex_shrink: 0.0,
                 // padding: UiRect {
                 //     left: Val::Px(2.0),
                 //     right: Val::Px(2.0),
@@ -520,14 +602,15 @@ struct CastleUi;
 
 fn update_castle_stats(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    // asset_server: Res<AssetServer>,
+    fonts: Res<FontAssets>,
     q_castle: Query<&Castle, Changed<Castle>>,
     mut q_castle_ui: Query<&mut Text, With<CastleUi>>,
 ) {
     for castle in q_castle.iter() {
         //println!("Updating stats");
         if q_castle_ui.is_empty() {
-            spawn_castle_stats(&mut commands, &asset_server, castle.health, castle.money);
+            spawn_castle_stats(&mut commands, &fonts, castle.health, castle.money);
         }
         for mut text in q_castle_ui.iter_mut() {
             text.sections[1].value = format!("{:}\n", castle.health);
