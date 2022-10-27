@@ -3,7 +3,6 @@ use crate::{
     enemy::Enemy,
     grid::{interaction, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
     ui::ButtonPressEvent,
-    MouseWorldPos,
 };
 use bevy::utils::Duration;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle, utils::FloatOrd};
@@ -123,7 +122,7 @@ impl Tower {
                         .insert(Sensor);
                 }
             }
-            MultiShotType::Burst(num) => {
+            MultiShotType::Burst(_num) => {
                 // one fire event makes multiple bullets over time
                 // how?
                 commands
@@ -493,8 +492,6 @@ fn spawn_tower(
     q_tiles: Query<&Tile, Without<Selection>>,
     mut ev_clear_selection: EventWriter<ClearSelectionsEvent>,
     mut ev_tower_placed: EventWriter<TowerPlacedEvent>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     tower_server: Res<TowerServer>,
     mut q_castle: Query<&mut Castle>,
 ) {
@@ -544,20 +541,6 @@ fn spawn_tower(
                             .insert(Collider::ball(tower.range))
                             .insert(Sensor)
                             .with_children(|parent| {
-                                // parent.spawn_bundle(MaterialMesh2dBundle {
-                                //     // #0099db
-                                //     // 30 is an arbitrary range
-                                //     // these overlap with one another
-                                //     // if you get enough, it becomes solid
-                                //     mesh: meshes.add(shape::Circle::new(tower.range).into()).into(),
-                                //     material: materials.add(ColorMaterial::from(Color::rgba_u8(
-                                //         0x00, 0x99, 0xdb, 0x35,
-                                //     ))),
-                                //     // set visibility to true when you click on it?
-                                //     visibility: Visibility { is_visible: false },
-                                //     ..default()
-                                // });
-                                
                                 let shape = shapes::Circle {
                                     radius: tower.range,
                                     center: Vec2::ZERO,
@@ -572,9 +555,7 @@ fn spawn_tower(
                                 );
                                 // not visible by default
                                 bundle.visibility.is_visible = false;
-                                parent
-                                    .spawn_bundle(bundle)
-                                    .insert(TowerRangeIndicator);
+                                parent.spawn_bundle(bundle).insert(TowerRangeIndicator);
                             })
                             .id();
                         commands.entity(ent).add_child(child);
@@ -604,22 +585,19 @@ fn update_tower_position(mut q_towers: Query<(&mut Tower, &GlobalTransform), Add
 struct TowerRangeIndicator;
 
 fn update_tower_area_indicator(
-    // want something like: , Or(Added<Selection>, RemovedComponents<Selection>)
-    q_tiles: Query<(Option<&Selection>, &Children, &Tile)>,
-    q_towers: Query<(&Tower, &Children)>,
-    mut q_indicators: Query<&mut Visibility, With<TowerRangeIndicator>>,
+    q_tiles: Query<&Selection, With<Tile>>,
+    q_towers: Query<&Parent, With<Tower>>,
+    mut q_indicators: Query<(&mut Visibility, &Parent), With<TowerRangeIndicator>>,
 ) {
     // parent structure is 3 deep
     // Tile.Tower.Indicator
     // set visible if it has a selection
-    for (selection, children, _tile) in q_tiles.iter() {
-        for &child in children {
-            if let Ok((_tower, tower_children)) = q_towers.get(child) {
-                for &child in tower_children {
-                    if let Ok(mut vis) = q_indicators.get_mut(child) {
-                        vis.is_visible = selection.is_some();
-                    }
-                }
+    for (mut vis, parent) in q_indicators.iter_mut() {
+        if let Ok(parent) = q_towers.get(parent.get()) {
+            if q_tiles.contains(parent.get()) {
+                vis.is_visible = true;
+            } else {
+                vis.is_visible = false;
             }
         }
     }
