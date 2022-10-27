@@ -139,7 +139,7 @@ fn enemy_collision(
                 castle.take_damage(1);
             }
         }
-        
+
         // is _inter relevant? It was always true when I tested other intersections
         // so when is it false?
         // for (a, b, _inter) in intersections {

@@ -141,7 +141,12 @@ fn spawn_tower_menu(
         });
 }
 
-fn spawn_castle_stats(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+fn spawn_castle_stats(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    health: u32,
+    money: u32,
+) {
     let font = asset_server.load("fonts/FiraSans-Bold.ttf");
     commands
         .spawn_bundle(
@@ -154,11 +159,14 @@ fn spawn_castle_stats(commands: &mut Commands, asset_server: &Res<AssetServer>) 
                         color: Color::WHITE,
                     },
                 ),
-                TextSection::from_style(TextStyle {
-                    font: font.clone(),
-                    font_size: 25.0,
-                    color: Color::GOLD,
-                }),
+                TextSection::new(
+                    format!("{:}\n", health),
+                    TextStyle {
+                        font: font.clone(),
+                        font_size: 25.0,
+                        color: Color::GOLD,
+                    },
+                ),
                 TextSection::new(
                     "Gold: ",
                     TextStyle {
@@ -167,11 +175,14 @@ fn spawn_castle_stats(commands: &mut Commands, asset_server: &Res<AssetServer>) 
                         color: Color::WHITE,
                     },
                 ),
-                TextSection::from_style(TextStyle {
-                    font: font.clone(),
-                    font_size: 25.0,
-                    color: Color::GOLD,
-                }),
+                TextSection::new(
+                    format!("{:}\n", money),
+                    TextStyle {
+                        font: font.clone(),
+                        font_size: 25.0,
+                        color: Color::GOLD,
+                    },
+                ),
             ])
             .with_style(Style {
                 align_self: AlignSelf::FlexEnd,
@@ -211,12 +222,13 @@ struct CastleUi;
 fn update_castle_stats(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    q_castle: Query<&Castle>,
+    q_castle: Query<&Castle, Changed<Castle>>,
     mut q_castle_ui: Query<&mut Text, With<CastleUi>>,
 ) {
     for castle in q_castle.iter() {
+        //println!("Updating stats");
         if q_castle_ui.is_empty() {
-            spawn_castle_stats(&mut commands, &asset_server);
+            spawn_castle_stats(&mut commands, &asset_server, castle.health, castle.money);
         }
         for mut text in q_castle_ui.iter_mut() {
             text.sections[1].value = format!("{:}\n", castle.health);

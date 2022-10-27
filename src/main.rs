@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
 use bevy::{prelude::*, render::camera::RenderTarget};
+use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 mod castle;
@@ -18,7 +19,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
-        .add_plugin(RapierDebugRenderPlugin::default())
+        //.add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(ShapePlugin)
         .add_plugin(grid::GridPlugin)
         .add_plugin(ui::UiPlugin)
         .add_plugin(tower::TowerPlugin)

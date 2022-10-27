@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
-use crate::tower::{Movement, Target};
+use crate::{
+    castle::Castle,
+    tower::{Movement, Target},
+};
 
 pub struct EnemyPlugin;
 
@@ -70,10 +73,18 @@ fn movement(mut q_enemies: Query<(&mut Transform, &Movement, &Enemy)>, time: Res
     }
 }
 
-fn tick_enemy(mut commands: Commands, q_enemies: Query<(Entity, &Enemy)>) {
+fn tick_enemy(
+    mut commands: Commands,
+    q_enemies: Query<(Entity, &Enemy)>,
+    mut q_castle: Query<&mut Castle>,
+) {
     for (entity, enemy) in q_enemies.iter() {
         if enemy.health == 0 {
             commands.entity(entity).despawn_recursive();
+            for mut castle in q_castle.iter_mut() {
+                // enemies die and drop 1 money
+                castle.money += 1;
+            }
         }
     }
 }

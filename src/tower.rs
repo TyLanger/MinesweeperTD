@@ -7,6 +7,7 @@ use crate::{
 };
 use bevy::utils::Duration;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle, utils::FloatOrd};
+use bevy_prototype_lyon::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 pub struct TowerPlugin;
@@ -37,7 +38,8 @@ impl Plugin for TowerPlugin {
             .add_system(bullet_collision.after(move_bullets))
             .add_system(bullet_tick.after(bullet_collision))
             .add_system(bomb_tick)
-            .add_system(explosion_damage);
+            .add_system(explosion_damage)
+            .add_system(update_tower_area_indicator);
     }
 }
 
@@ -542,19 +544,37 @@ fn spawn_tower(
                             .insert(Collider::ball(tower.range))
                             .insert(Sensor)
                             .with_children(|parent| {
-                                parent.spawn_bundle(MaterialMesh2dBundle {
-                                    // #0099db
-                                    // 30 is an arbitrary range
-                                    // these overlap with one another
-                                    // if you get enough, it becomes solid
-                                    mesh: meshes.add(shape::Circle::new(tower.range).into()).into(),
-                                    material: materials.add(ColorMaterial::from(Color::rgba_u8(
-                                        0x00, 0x99, 0xdb, 0x35,
-                                    ))),
-                                    // set visibility to true when you click on it?
-                                    visibility: Visibility { is_visible: false },
-                                    ..default()
-                                });
+                                // parent.spawn_bundle(MaterialMesh2dBundle {
+                                //     // #0099db
+                                //     // 30 is an arbitrary range
+                                //     // these overlap with one another
+                                //     // if you get enough, it becomes solid
+                                //     mesh: meshes.add(shape::Circle::new(tower.range).into()).into(),
+                                //     material: materials.add(ColorMaterial::from(Color::rgba_u8(
+                                //         0x00, 0x99, 0xdb, 0x35,
+                                //     ))),
+                                //     // set visibility to true when you click on it?
+                                //     visibility: Visibility { is_visible: false },
+                                //     ..default()
+                                // });
+                                
+                                let shape = shapes::Circle {
+                                    radius: tower.range,
+                                    center: Vec2::ZERO,
+                                };
+                                let mut bundle = GeometryBuilder::build_as(
+                                    &shape,
+                                    DrawMode::Stroke(StrokeMode::new(
+                                        Color::rgba_u8(0x00, 0x99, 0xdb, 0x77),
+                                        3.0,
+                                    )),
+                                    Transform::from_xyz(0.0, 0.0, 0.5),
+                                );
+                                // not visible by default
+                                bundle.visibility.is_visible = false;
+                                parent
+                                    .spawn_bundle(bundle)
+                                    .insert(TowerRangeIndicator);
                             })
                             .id();
                         commands.entity(ent).add_child(child);
@@ -577,6 +597,31 @@ fn spawn_tower(
 fn update_tower_position(mut q_towers: Query<(&mut Tower, &GlobalTransform), Added<Tower>>) {
     for (mut tower, trans) in q_towers.iter_mut() {
         tower.set_position(trans.translation().truncate());
+    }
+}
+
+#[derive(Component)]
+struct TowerRangeIndicator;
+
+fn update_tower_area_indicator(
+    // want something like: , Or(Added<Selection>, RemovedComponents<Selection>)
+    q_tiles: Query<(Option<&Selection>, &Children, &Tile)>,
+    q_towers: Query<(&Tower, &Children)>,
+    mut q_indicators: Query<&mut Visibility, With<TowerRangeIndicator>>,
+) {
+    // parent structure is 3 deep
+    // Tile.Tower.Indicator
+    // set visible if it has a selection
+    for (selection, children, _tile) in q_tiles.iter() {
+        for &child in children {
+            if let Ok((_tower, tower_children)) = q_towers.get(child) {
+                for &child in tower_children {
+                    if let Ok(mut vis) = q_indicators.get_mut(child) {
+                        vis.is_visible = selection.is_some();
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -837,11 +882,11 @@ fn tower_tick(
                         // movement is 50
                         // bomb takes 1s to travel
                         // in 1s, they will be 50.0 closer to the center so aim there
-                        // other bullets are faster. lead by 5.0 instead
+                        // other bullets are faster. lead by less
                         // if I really wanted good aim, would need to scale it by distance to target
 
                         let dir_to_center = Vec3::ZERO - closest_pos;
-                        let prediction = closest_pos + dir_to_center.normalize_or_zero() * 5.0;
+                        let prediction = closest_pos + dir_to_center.normalize_or_zero() * 30.0;
                         let dir = prediction - tower_trans.translation();
 
                         //let dir = closest_pos - tower_trans.translation();
