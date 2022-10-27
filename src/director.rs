@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 
-use crate::enemy::spawn_enemy;
+use crate::{enemy::spawn_enemy, GameState};
 
 pub struct DirectorPlugin;
 
 impl Plugin for DirectorPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(SpawnInfo::new()).add_system(spawn_tick);
+        app.insert_resource(SpawnInfo::new())
+            .add_system_set(SystemSet::on_update(GameState::Playing).with_system(spawn_tick));
+        // app.insert_resource(SpawnInfo::new()).add_system(spawn_tick);
     }
 }
 

@@ -1,18 +1,36 @@
 use bevy::prelude::*;
 
-use crate::{
-    castle::Castle,
-    tower::{setup_towers, TowerServer},
-};
+use crate::{castle::Castle, loading::FontAssets, tower::TowerServer, GameState};
 
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_tower_menu.after(setup_towers))
-            .add_event::<ButtonPressEvent>()
-            .add_system(update_buttons)
-            .add_system(update_castle_stats);
+        app.add_event::<ButtonPressEvent>()
+            .add_event::<SwitchPlayEvent>();
+        app.add_system_set(SystemSet::on_enter(GameState::MainMenu).with_system(setup_main_menu))
+            .add_system_set(
+                SystemSet::on_update(GameState::MainMenu)
+                    .with_system(click_play_button)
+                    .with_system(switch_to_playing),
+            )
+            .add_system_set(SystemSet::on_exit(GameState::MainMenu).with_system(cleanup_menu));
+        //spawn_director_menu
+        app.add_system_set(
+            SystemSet::on_enter(GameState::Playing)
+                .with_system(spawn_tower_menu)
+                .with_system(spawn_director_menu),
+        )
+        .add_system_set(
+            SystemSet::on_update(GameState::Playing)
+                .with_system(update_buttons)
+                .with_system(update_castle_stats),
+        );
+        // .add_startup_system(spawn_tower_menu.after(setup_towers))
+        // app.add_event::<ButtonPressEvent>()
+        //     .add_event::<SwitchPlayEvent>()
+        //     .add_system(update_buttons)
+        //     .add_system(update_castle_stats);
     }
 }
 
@@ -27,16 +45,88 @@ pub struct ButtonPressEvent {
 
 // Components
 #[derive(Component)]
-struct ButtonInfo {
+pub struct ButtonInfo {
     base_text: String,
     hovered_text: String,
     button_number: usize,
 }
 
-fn update_buttons(
+#[derive(Component)]
+pub struct StartButton;
+
+fn setup_main_menu(mut commands: Commands, font_assets: Res<FontAssets>) {
+    commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(120.0), Val::Px(50.0)),
+                margin: UiRect::all(Val::Auto),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            color: NORMAL_BUTTON.into(),
+            ..default()
+        })
+        .insert(StartButton)
+        .with_children(|parent| {
+            parent.spawn_bundle(TextBundle {
+                text: Text::from_section(
+                    "Play".to_string(),
+                    TextStyle {
+                        font: font_assets.fira_sans.clone(),
+                        font_size: 40.0,
+                        color: Color::rgb(0.9, 0.9, 0.9),
+                    },
+                ),
+                ..default()
+            });
+        });
+}
+
+fn click_play_button(
+    // mut state: ResMut<State<GameState>>,
+    mut q_interaction: Query<
+        (&Interaction, &mut UiColor),
+        (Changed<Interaction>, With<Button>, With<StartButton>),
+    >,
+    mut ev_switch: EventWriter<SwitchPlayEvent>,
+) {
+    for (interaction, mut color) in q_interaction.iter_mut() {
+        match *interaction {
+            Interaction::Clicked => {
+                // state.set(GameState::Playing).unwrap();
+                // switch_to_playing(state);
+                ev_switch.send(SwitchPlayEvent);
+            }
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+            }
+            Interaction::None => {
+                *color = NORMAL_BUTTON.into();
+            }
+        }
+    }
+}
+
+struct SwitchPlayEvent;
+
+fn switch_to_playing(ev_switch: EventReader<SwitchPlayEvent>, mut state: ResMut<State<GameState>>) {
+    if !ev_switch.is_empty() {
+        ev_switch.clear();
+        state.set(GameState::Playing).unwrap();
+    }
+}
+
+fn cleanup_menu(mut commands: Commands, q_button: Query<Entity, With<StartButton>>) {
+    for entity in q_button.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+pub fn update_buttons(
     mut q_interaction: Query<
         (&Interaction, &mut UiColor, &Children),
-        (Changed<Interaction>, With<Button>),
+        (Changed<Interaction>, With<Button>, Without<StartButton>),
     >,
     q_child: Query<&ButtonInfo>,
     mut q_text: Query<&mut Text>,
@@ -76,6 +166,82 @@ fn spawn_tower_menu(
                 position_type: PositionType::Absolute,
                 position: UiRect {
                     right: Val::Px(0.0),
+                    ..default()
+                },
+                size: Size::new(Val::Percent(20.0), Val::Percent(100.0)),
+                // left-right
+                justify_content: JustifyContent::SpaceEvenly,
+                // up-down
+                align_content: AlignContent::Center,
+                //align_items: AlignItems::FlexEnd,
+                flex_wrap: FlexWrap::Wrap,
+
+                ..default()
+            },
+            // #262b44
+            color: Color::rgb_u8(0x26, 0x2b, 0x44).into(),
+            ..default()
+        })
+        .with_children(|root| {
+            for (i, tower) in tower_server.towers.iter().enumerate() {
+                //let button_text = vec!["Green", "Red", "Blue", "Orange"];
+                //for i in 0..4 {
+                root.spawn_bundle(ButtonBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(40.0), Val::Auto),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        // coloured box around text
+                        padding: UiRect {
+                            left: Val::Px(2.0),
+                            right: Val::Px(2.0),
+                            top: Val::Px(2.0),
+                            bottom: Val::Px(2.0),
+                        },
+                        // whitespace around the button
+                        margin: UiRect {
+                            left: Val::Px(2.0),
+                            right: Val::Px(2.0),
+                            top: Val::Px(2.0),
+                            bottom: Val::Px(2.0),
+                            //..default()
+                        },
+                        ..default()
+                    },
+                    color: NORMAL_BUTTON.into(),
+                    ..default()
+                })
+                .with_children(|button_base| {
+                    button_base
+                        .spawn_bundle(TextBundle::from_section(
+                            "Button",
+                            TextStyle {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 20.0,
+                                color: Color::rgb(0.9, 0.9, 0.9),
+                            },
+                        ))
+                        .insert(ButtonInfo {
+                            base_text: tower.visuals.name.to_string(),
+                            hovered_text: "Build Tower".to_string(),
+                            button_number: i,
+                        });
+                });
+            }
+        });
+}
+
+fn spawn_director_menu(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    tower_server: Res<TowerServer>,
+) {
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    left: Val::Px(0.0),
                     ..default()
                 },
                 size: Size::new(Val::Percent(20.0), Val::Percent(100.0)),

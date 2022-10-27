@@ -4,6 +4,7 @@ use bevy_rapier2d::prelude::*;
 use crate::{
     enemy::Enemy,
     grid::{Grid, Tile},
+    GameState,
 };
 
 pub struct CastlePlugin;
@@ -12,11 +13,28 @@ impl Plugin for CastlePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TerritoryInfo::new())
             .add_event::<NumberFilledEvent>()
-            .add_event::<ExpandAreaEvent>()
-            .add_system(startup)
-            .add_system(spawn_castle)
-            .add_system(number_filled)
-            .add_system(enemy_collision);
+            .add_event::<ExpandAreaEvent>();
+
+        // app.add_system_set(SystemSet::on_exit(GameState::MainMenu).with_system(startup))
+        app.add_system_set(
+            SystemSet::on_enter(GameState::Playing)
+                .with_system(startup)
+                .with_system(spawn_castle.after(startup)),
+        )
+        // update
+        .add_system_set(
+            SystemSet::on_update(GameState::Playing)
+                .with_system(number_filled)
+                .with_system(enemy_collision),
+        );
+
+        // app.insert_resource(TerritoryInfo::new())
+        //     .add_event::<NumberFilledEvent>()
+        //     .add_event::<ExpandAreaEvent>()
+        //     .add_system(startup)
+        //     .add_system(spawn_castle)
+        //     .add_system(number_filled)
+        //     .add_system(enemy_collision);
     }
 }
 
@@ -65,42 +83,42 @@ impl Castle {
     }
 }
 
-fn startup(mut ev_expand: EventWriter<ExpandAreaEvent>, keyboard: Res<Input<KeyCode>>) {
-    if keyboard.just_pressed(KeyCode::F) {
-        ev_expand.send(ExpandAreaEvent);
-    }
+fn startup(mut ev_expand: EventWriter<ExpandAreaEvent>) {
+    // if keyboard.just_pressed(KeyCode::F) {
+    ev_expand.send(ExpandAreaEvent);
+    // }
 }
 
 fn spawn_castle(
     mut commands: Commands,
     q_tiles: Query<Entity, With<Tile>>,
     grid: Res<Grid>,
-    keyboard: Res<Input<KeyCode>>,
+    // keyboard: Res<Input<KeyCode>>,
 ) {
-    if keyboard.just_pressed(KeyCode::C) {
-        if let Some(info) = grid.get_xy(10, 10) {
-            if let Ok(ent) = q_tiles.get(info.entity) {
-                let child = commands
-                    .spawn_bundle(SpriteBundle {
-                        sprite: Sprite {
-                            color: Color::GOLD,
-                            custom_size: Some(Vec2::splat(25.0)),
-                            ..default()
-                        },
-                        transform: Transform::from_xyz(0.0, 0.0, 0.3),
+    // if keyboard.just_pressed(KeyCode::C) {
+    if let Some(info) = grid.get_xy(10, 10) {
+        if let Ok(ent) = q_tiles.get(info.entity) {
+            let child = commands
+                .spawn_bundle(SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::GOLD,
+                        custom_size: Some(Vec2::splat(25.0)),
                         ..default()
-                    })
-                    .insert(Castle {
-                        health: 100,
-                        money: 100,
-                    })
-                    .insert(Collider::cuboid(12.5, 12.5))
-                    .insert(Sensor)
-                    .id();
-                commands.entity(ent).add_child(child);
-            }
+                    },
+                    transform: Transform::from_xyz(0.0, 0.0, 0.3),
+                    ..default()
+                })
+                .insert(Castle {
+                    health: 100,
+                    money: 100,
+                })
+                .insert(Collider::cuboid(12.5, 12.5))
+                .insert(Sensor)
+                .id();
+            commands.entity(ent).add_child(child);
         }
     }
+    // }
 }
 
 fn number_filled(

@@ -1,8 +1,9 @@
 use crate::{
     castle::Castle,
     enemy::Enemy,
-    grid::{interaction, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
-    ui::ButtonPressEvent,
+    grid::{clear_selection, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
+    ui::{ButtonPressEvent, update_buttons},
+    GameState,
 };
 use bevy::utils::Duration;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle, utils::FloatOrd};
@@ -13,24 +14,16 @@ pub struct TowerPlugin;
 
 impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
-        // this before just doesn't work?
-        // Clear interaction
-        // Build tower 1
-        // Clear button
-
-        // good
-        // Build tower 2
-        // Clear button false
-        // Clear interaction
-
-        // bad
-        // Clear interaction
-        // Build tower 0
-        // Clear button true
         app.add_event::<TowerPlacedEvent>()
-            .insert_resource(TowerServer { towers: Vec::new() })
-            .add_startup_system(setup_towers)
-            .add_system(spawn_tower.before(interaction))
+            .insert_resource(TowerServer { towers: Vec::new() });
+        app.add_system_set(SystemSet::on_enter(GameState::Loading).with_system(setup_towers));
+        // the timing on spawning a tower is too complicated
+        // need to press the button to send the event
+        // then run this to process the event
+        // before clear_selection runs and removes the Selection component
+        // it removes the Selection because clicking away from a tile clears selection
+        // which includes clicking on a button.
+        app.add_system(spawn_tower.after(update_buttons).before(clear_selection))
             .add_system(update_tower_position.before(tower_tick))
             .add_system(tower_tick)
             .add_system(move_bullets)

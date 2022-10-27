@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use crate::{
     castle::{ExpandAreaEvent, NumberFilledEvent, TerritoryInfo},
     tower::TowerPlacedEvent,
-    MouseWorldPos,
+    GameState, MouseWorldPos,
 };
 
 // palette from https://lospec.com/palette-list/endesga-32
@@ -15,16 +15,43 @@ impl Plugin for GridPlugin {
         app.insert_resource(Grid { tiles: Vec::new() })
             .insert_resource(ImageSettings::default_nearest())
             .insert_resource(NumberTextures::default())
-            .add_event::<ClearSelectionsEvent>()
-            .add_startup_system(setup_atlas.before(setup))
-            .add_startup_system(setup)
-            .add_system(expand_floor)
-            .add_system(clear_interaction.before(interaction))
-            .add_system(interaction)
-            .add_system(tile_interaction.after(interaction))
-            .add_system(clear_selection.after(tile_interaction))
-            .add_system(update_numbers)
-            .add_system(decrement_numbers);
+            .add_event::<ClearSelectionsEvent>();
+
+        app.add_system_set(SystemSet::on_enter(GameState::Loading).with_system(setup_atlas))
+            .add_system_set(
+                SystemSet::on_enter(GameState::MainMenu).with_system(setup_grid), //.after(setup_atlas)
+            )
+            // .add_system_set(
+            //     // after setup_atlas
+            //     SystemSet::on_enter(GameState::Playing).with_system(setup),
+            // )
+            // update
+            .add_system_set(
+                SystemSet::on_update(GameState::Playing)
+                    .with_system(expand_floor)
+                    .with_system(clear_interaction)
+                    .with_system(interaction.after(clear_interaction))
+                    .with_system(tile_interaction.after(interaction))
+                    .with_system(clear_selection.after(tile_interaction))
+                    .with_system(update_numbers)
+                    .with_system(decrement_numbers),
+            );
+        // exit
+        // .add_system_set(SystemSet::on_exit(GameState::MainMenu).with_system(cleanup_menu));
+
+        // app.insert_resource(Grid { tiles: Vec::new() })
+        //     .insert_resource(ImageSettings::default_nearest())
+        //     .insert_resource(NumberTextures::default())
+        //     .add_event::<ClearSelectionsEvent>()
+        //     .add_startup_system(setup_atlas.before(setup))
+        //     .add_startup_system(setup)
+        //     .add_system(expand_floor)
+        //     .add_system(clear_interaction.before(interaction))
+        //     .add_system(interaction)
+        //     .add_system(tile_interaction.after(interaction))
+        //     .add_system(clear_selection.after(tile_interaction))
+        //     .add_system(update_numbers)
+        //     .add_system(decrement_numbers);
     }
 }
 
@@ -162,7 +189,7 @@ pub struct Grid {
 
 impl Grid {
     pub fn get_vec2(&self, pos: Vec2) -> Option<TileInfo> {
-        let x = ((GRID_WIDTH as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.x) / TILE_SIZE;
+        let x = (((GRID_WIDTH-1) as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.x) / TILE_SIZE;
         let y = ((GRID_HEIGHT as f32 * 0.5 * TILE_SIZE) + TILE_SIZE * 0.5 + pos.y) / TILE_SIZE;
 
         if x < 0.0 || y < 0.0 {
@@ -281,10 +308,11 @@ fn setup_atlas(
     numbers.handle = texture_atlas_handle;
 }
 
-fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberTextures>) {
+fn setup_grid(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberTextures>) {
     let offset = Vec3::new(
-        -0.5 * (GRID_WIDTH as f32) * TILE_SIZE,
-        -0.5 * (GRID_HEIGHT as f32) * TILE_SIZE,
+        // 21 * 0.5 = 10.5 * 30.0
+        -0.5 * ((GRID_WIDTH - 1) as f32) * TILE_SIZE,
+        -0.5 * ((GRID_HEIGHT) as f32) * TILE_SIZE,
         0.0,
     );
 
@@ -359,7 +387,7 @@ fn setup(mut commands: Commands, mut grid: ResMut<Grid>, numbers: Res<NumberText
 }
 
 // with<tile> stops it from messing with UI stuff I might have
-fn clear_interaction(mut q_tile: Query<(&mut Interaction, Option<&Selection>), With<Tile>>) {
+pub fn clear_interaction(mut q_tile: Query<(&mut Interaction, Option<&Selection>), With<Tile>>) {
     for (mut interaction, selection) in q_tile.iter_mut() {
         match *interaction {
             Interaction::Clicked => {
@@ -410,9 +438,24 @@ pub fn interaction(
                 }
             }
         }
-    } else if right_clicked {
-        // this breaks for some reason if using left click
-        // println!("Clear interaction");
+    } else if left_clicked {
+        // sometimes won't spawn a tower
+        // clicking a button sends a tower build event
+        // it also triggers this (clicking while not hovering)
+        // both call clear_selection
+        // need to build before clear_selevtion
+        // bug was confusion between clear_interaction and clear_selection
+        // I wanted clear_selection, the one that removes the Selection component
+        // but also messes up if it goes tower, interaction, clear_selection
+        // needs to go clear, this, tower
+        
+        // update_buttons, spawn_tower, clear
+        // is the correct order
+        ev_clear.send(ClearSelectionsEvent);
+
+    }
+    
+    if right_clicked {
         ev_clear.send(ClearSelectionsEvent);
     }
 }

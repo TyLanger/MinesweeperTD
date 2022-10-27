@@ -18,6 +18,7 @@ dev = [
 [dependencies]
 bevy = "0.8.1"
 bevy_rapier2d = "0.16.2"
+bevy_asset_loader = { version = "0.12" }
 rand = "0.8.5"
 getrandom = { version = "0.2", features = ["js"] }
 bevy_prototype_lyon = "0.6.0"
