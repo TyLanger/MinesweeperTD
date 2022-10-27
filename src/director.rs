@@ -31,7 +31,7 @@ impl SpawnInfo {
     fn new() -> Self {
         SpawnInfo {
             wave_timer: Timer::from_seconds(10.0, true),
-            batch_size: 10,
+            batch_size: 5,
             difficulty: 0,
             next_strat: SpawnStrat::Spread,
             positions: get_spread_positions(10),
@@ -105,6 +105,8 @@ fn upgrade_director(
         // once it runs the 6th time, that's the boss round. Survive and you win.
         println!("Enemies are harder!");
         spawn_info.difficulty += 1;
+        spawn_info.wave_timer =
+            Timer::from_seconds(10.0 - (spawn_info.difficulty / 2) as f32, true);
     }
 }
 

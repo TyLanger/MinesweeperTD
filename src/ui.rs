@@ -7,6 +7,7 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ButtonPressEvent>()
+            .add_event::<ButtonHoverEvent>()
             .add_event::<SwitchPlayEvent>();
         app.add_system_set(SystemSet::on_enter(GameState::MainMenu).with_system(setup_main_menu))
             .add_system_set(
@@ -24,7 +25,8 @@ impl Plugin for UiPlugin {
         .add_system_set(
             SystemSet::on_update(GameState::Playing)
                 .with_system(update_buttons)
-                .with_system(update_castle_stats),
+                .with_system(update_castle_stats)
+                .with_system(update_tower_info_panel),
         );
         // .add_startup_system(spawn_tower_menu.after(setup_towers))
         // app.add_event::<ButtonPressEvent>()
@@ -40,6 +42,10 @@ const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
 
 // Events
 pub struct ButtonPressEvent {
+    pub button_number: usize,
+}
+
+pub struct ButtonHoverEvent {
     pub button_number: usize,
 }
 
@@ -131,6 +137,7 @@ pub fn update_buttons(
     q_child: Query<&ButtonInfo>,
     mut q_text: Query<&mut Text>,
     mut ev_button_press: EventWriter<ButtonPressEvent>,
+    mut ev_button_hover: EventWriter<ButtonHoverEvent>,
 ) {
     for (interaction, mut color, children) in q_interaction.iter_mut() {
         let mut text = q_text.get_mut(children[0]).unwrap();
@@ -146,6 +153,9 @@ pub fn update_buttons(
             Interaction::Hovered => {
                 text.sections[0].value = info.unwrap().hovered_text.clone();
                 *color = HOVERED_BUTTON.into();
+                ev_button_hover.send(ButtonHoverEvent {
+                    button_number: info.unwrap().button_number,
+                });
             }
             Interaction::None => {
                 text.sections[0].value = info.unwrap().base_text.clone();
@@ -159,6 +169,7 @@ fn spawn_tower_menu(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     tower_server: Res<TowerServer>,
+    fonts: Res<FontAssets>,
 ) {
     commands
         .spawn_bundle(NodeBundle {
@@ -228,7 +239,129 @@ fn spawn_tower_menu(
                         });
                 });
             }
+        })
+        .with_children(|root| {
+            root.spawn_bundle(
+                TextBundle::from_sections([
+                    // TextSection::new(
+                    //     "Hovered button info\n",
+                    //     TextStyle {
+                    //         font: fonts.fira_sans.clone(),
+                    //         font_size: 20.0,
+                    //         color: Color::rgb(0.9, 0.9, 0.9),
+                    //     },
+                    // ),
+                    TextSection::new(
+                        "Basic Tower\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    TextSection::new(
+                        "Cost: ",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    TextSection::new(
+                        "10\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            // #fee761
+                            color: Color::rgb_u8(0xf3, 0xe7, 0x61),
+                        },
+                    ),
+                    TextSection::new(
+                        "Range: ",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    TextSection::new(
+                        "60\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            // #0099db
+                            color: Color::rgb_u8(0x00, 0x99, 0xdb),
+                        },
+                    ),
+                ])
+                .with_style(Style {
+                    align_self: AlignSelf::FlexEnd,
+                    // whitespace around the button
+                    margin: UiRect {
+                        // left: Val::Px(2.0),
+                        // right: Val::Px(2.0),
+                        // top: Val::Px(2.0),
+                        bottom: Val::Px(30.0),
+                        ..default()
+                    },
+                    // position_type: PositionType::Absolute,
+                    // position: UiRect {
+                    //     bottom: Val::Percent(5.0),
+                    //     right: Val::Percent(20.5),
+                    //     ..default()
+                    // },
+                    ..default()
+                }),
+            )
+            .insert(TowerInfoPanel);
         });
+}
+
+#[derive(Component)]
+struct TowerInfoPanel;
+
+fn update_tower_info_panel(
+    mut ev_button_hover: EventReader<ButtonHoverEvent>,
+    mut q_ui: Query<&mut Text, With<TowerInfoPanel>>,
+    tower_server: Res<TowerServer>,
+) {
+    for ev in ev_button_hover.iter() {
+        for mut text in q_ui.iter_mut() {
+            let cost = tower_server.towers[ev.button_number].cost;
+            let range = tower_server.towers[ev.button_number].range;
+
+            let name = match ev.button_number {
+                0 => {
+                    // basic tower
+                    "Basic Tower\n"
+                }
+                1 => {
+                    // shotgun
+                    "Shotgun Tower\n"
+                }
+                2 => {
+                    // bomb
+                    "Bomb Tower\n"
+                }
+                3 => {
+                    // swarm
+                    "Swarm Tower\n"
+                }
+                _ => {
+                    "Error Tower\n"
+                }
+            };
+            // 0 is Basic Tower\n
+            // 1 is Cost
+            // 2 is 10\n
+            // 3 is Range
+            // 4 is 60\n
+            // text.sections[0]
+            text.sections[0].value = name.to_string();
+            text.sections[2].value = format!("{:}\n", cost);
+            text.sections[4].value = format!("{:}\n", range);
+        }
+    }
 }
 
 fn spawn_director_menu(

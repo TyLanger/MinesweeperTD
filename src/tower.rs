@@ -43,9 +43,9 @@ pub struct TowerPlacedEvent {
 
 #[derive(Component, Clone)]
 pub struct Tower {
-    range: f32,
+    pub range: f32,
     pub visuals: TowerVisuals,
-    cost: u32,
+    pub cost: u32,
     bullet: Bullet,
     gun: Gun,
     position: Option<Vec2>,
@@ -383,8 +383,8 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
         ),
         gun: Gun {
             clip_size: 1,
-            time_between_shots: 0.2,
-            timer_between: Timer::from_seconds(0.1, true),
+            time_between_shots: 0.3,
+            timer_between: Timer::from_seconds(0.4, true),
             reload_time: 1.5,
             reload_timer: Timer::from_seconds(1.5, false),
             multi_type: MultiShotType::Burst(1),
@@ -396,7 +396,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
 
     let shotgun_tower = Tower {
         range: 80.0,
-        cost: 10,
+        cost: 15,
         visuals: TowerVisuals {
             name: "Shotgun".to_string(),
             color: Color::RED,
@@ -404,7 +404,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
         },
         bullet: Bullet::new(
             ImpactType::Pierce(0),
-            2,
+            1,
             Movement {
                 target: Target::Direction(None),
                 speed: 100.0,
@@ -412,8 +412,8 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
         ),
         gun: Gun {
             clip_size: 2,
-            time_between_shots: 0.3,
-            timer_between: Timer::from_seconds(0.3, true),
+            time_between_shots: 0.5,
+            timer_between: Timer::from_seconds(0.5, true),
             reload_time: 1.5,
             reload_timer: Timer::from_seconds(1.5, false),
             multi_type: MultiShotType::Spread(Spread {
@@ -428,7 +428,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
 
     let bomb_tower = Tower {
         range: 100.0,
-        cost: 20,
+        cost: 30,
         visuals: TowerVisuals {
             name: "Bomb".to_string(),
             color: Color::BLUE,

@@ -116,6 +116,7 @@ impl Tile {
         match self.tile_state {
             TileState::Wall => self.colour,
             TileState::Floor => self.floor,
+            TileState::Tower => self.floor,
             _ => Color::ANTIQUE_WHITE,
         }
     }
