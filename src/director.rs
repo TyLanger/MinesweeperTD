@@ -41,7 +41,7 @@ impl SpawnInfo {
             difficulty: 0,
             enemy_health: 5,
             next_strat: SpawnStrat::Spread,
-            positions: get_spread_positions(10),
+            positions: get_spread_positions(4),
         }
     }
 

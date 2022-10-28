@@ -72,7 +72,11 @@ pub struct ButtonInfo {
 #[derive(Component)]
 pub struct StartButton;
 
-fn setup_main_menu(mut commands: Commands, font_assets: Res<FontAssets>, textures: Res<SpriteAssets>) {
+fn setup_main_menu(
+    mut commands: Commands,
+    font_assets: Res<FontAssets>,
+    textures: Res<SpriteAssets>,
+) {
     commands
         .spawn_bundle(SpriteBundle {
             texture: textures.title.clone(),
@@ -81,7 +85,6 @@ fn setup_main_menu(mut commands: Commands, font_assets: Res<FontAssets>, texture
             //     custom_size: Some(Vec2::new(190.0 * 2.0, 32.0 * 2.0)),
             //     ..default()
             // },
-            
             transform: Transform {
                 translation: Vec3::new(0.0, 125.0, 0.2),
                 // scale: Vec3::new(2.0, 2.0, 1.0),
@@ -90,7 +93,7 @@ fn setup_main_menu(mut commands: Commands, font_assets: Res<FontAssets>, texture
             ..default()
         })
         .insert(StartButton);
-    
+
     commands
         .spawn_bundle(ButtonBundle {
             style: Style {
@@ -537,19 +540,33 @@ fn update_director_panel(
     spawn_info: Res<SpawnInfo>,
 ) {
     for mut text in q_ui.iter_mut() {
-        // 0 Director
-        // 1 Will spawn
-        // 2 15 enemies
-        // 3 With
-        // 4 5 HP
-        // 5 in a
-        // 6 Burst
-        // 7 in
-        // 8 5.5s
-        text.sections[2].value = format!("{:} enemies\n", spawn_info.batch_size);
-        text.sections[4].value = format!("{:?} HP\n", spawn_info.enemy_health);
-        text.sections[6].value = format!("{:?}\n", spawn_info.next_strat);
-        text.sections[8].value = format!("{:.1}s\n", spawn_info.get_time());
+        if spawn_info.difficulty >= 6 {
+            text.sections[0].value = format!("SURVIVE\n");
+            text.sections[1].value = format!("SURVIVE ");
+            text.sections[2].value = format!("SURVIVE\n");
+            text.sections[3].value = format!("SURVIVE ");
+            text.sections[4].value = format!("SURVIVE\n");
+            text.sections[5].value = format!("SURVIVE ");
+            text.sections[6].value = format!("SURVIVE\n");
+            text.sections[7].value = format!("SURVIVE ");
+            text.sections[8].value = format!("SURVIVE\n");
+            // not the right timer
+            // text.sections[8].value = format!("{:.1}s\n", spawn_info.get_time());
+        } else {
+            // 0 Director
+            // 1 Will spawn
+            // 2 15 enemies
+            // 3 With
+            // 4 5 HP
+            // 5 in a
+            // 6 Burst
+            // 7 in
+            // 8 5.5s
+            text.sections[2].value = format!("{:} enemies\n", spawn_info.batch_size);
+            text.sections[4].value = format!("{:?} HP\n", spawn_info.enemy_health);
+            text.sections[6].value = format!("{:?}\n", spawn_info.next_strat);
+            text.sections[8].value = format!("{:.1}s\n", spawn_info.get_time());
+        }
     }
 }
 
