@@ -186,10 +186,10 @@ impl Tower {
                 s.target = target;
                 s.bullet = Some(self.bullet.clone());
                 commands
-                    .spawn()
-                    .insert(Transform::from_translation(
-                        self.position.unwrap().extend(0.0),
-                    ))
+                    .spawn_bundle(SpatialBundle {
+                        transform: Transform::from_translation(self.position.unwrap().extend(0.0)),
+                        ..default()
+                    })
                     .insert(s)
                     .insert(Collider::ball(self.range))
                     .insert(Sensor);
