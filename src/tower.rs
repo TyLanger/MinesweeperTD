@@ -190,7 +190,7 @@ impl Tower {
                     .insert(Transform::from_translation(
                         self.position.unwrap().extend(0.0),
                     ))
-                    .insert(s.clone())
+                    .insert(s)
                     .insert(Collider::ball(self.range))
                     .insert(Sensor);
             }
@@ -295,15 +295,25 @@ impl Gun {
         }
     }
 
+    #[allow(clippy::collapsible_if)]
     fn tick(&mut self, delta: Duration) -> &Self {
-        match self.state {
-            ShootState::BetweenShots => {
-                if self.timer_between.tick(delta).just_finished() {
-                    self.state = ShootState::Ready;
-                }
+        // ignore collapsable if
+        // tick does work I don't want done if not in the right state
+        // #![allow(clippy::too_many_arguments, clippy::type_complexity)]
+
+        if self.state == ShootState::BetweenShots {
+            if self.timer_between.tick(delta).just_finished() {
+                self.state = ShootState::Ready;
             }
-            _ => {}
         }
+        // match self.state {
+        //     ShootState::BetweenShots => {
+        //         if self.timer_between.tick(delta).just_finished() {
+        //             self.state = ShootState::Ready;
+        //         }
+        //     }
+        //     _ => {}
+        // }
         self
     }
 }
@@ -518,15 +528,15 @@ fn spawn_tower(
             //for tower in tower_server.towers.iter() {
             for (ent, mut tile) in q_selection.iter_mut() {
                 let mut floor_nearby = false;
-                for neighbour in grid.get_ring(tile.x, tile.y, 1) {
-                    if let Some(info) = neighbour {
-                        if let Ok(tile) = q_tiles.get(info.entity) {
-                            if tile.tile_state == TileState::Floor {
-                                floor_nearby = true;
-                                break;
-                            }
+                for neighbour in grid.get_ring(tile.x, tile.y, 1).into_iter().flatten() {
+                    // if let Some(info) = neighbour {
+                    if let Ok(tile) = q_tiles.get(neighbour.entity) {
+                        if tile.tile_state == TileState::Floor {
+                            floor_nearby = true;
+                            break;
                         }
                     }
+                    // }
                 }
                 if !floor_nearby {
                     println!("Tower failed. No floor nearby {}, {}", tile.x, tile.y);
@@ -964,26 +974,27 @@ fn tower_tick(
             //     }
             // }
 
-            if close_pair.is_some() {
-                // they're equivalent so I must've done something right
-                // if close_pair.is_some() {
-                //     println!("Both some");
-                //     println!(
-                //         "loop: pos: {:?}, ent: {:?}. Map: pos: {:?}, ent: {:?}",
-                //         closest_pos.unwrap(),
-                //         closest_ent.unwrap(),
-                //         close_pair.unwrap().1,
-                //         close_pair.unwrap().0,
-                //     );
-                //     if closest_pos.unwrap() == close_pair.unwrap().1 {
-                //         println!("Both positions same");
-                //     }
-                //     if closest_ent.unwrap() == close_pair.unwrap().0 {
-                //         println!("Both entities same");
-                //     }
-                // }
-                let (_closest_ent, closest_pos) = close_pair.unwrap();
+            // if close_pair.is_some() {
+            //     // they're equivalent so I must've done something right
+            //     // if close_pair.is_some() {
+            //     //     println!("Both some");
+            //     //     println!(
+            //     //         "loop: pos: {:?}, ent: {:?}. Map: pos: {:?}, ent: {:?}",
+            //     //         closest_pos.unwrap(),
+            //     //         closest_ent.unwrap(),
+            //     //         close_pair.unwrap().1,
+            //     //         close_pair.unwrap().0,
+            //     //     );
+            //     //     if closest_pos.unwrap() == close_pair.unwrap().1 {
+            //     //         println!("Both positions same");
+            //     //     }
+            //     //     if closest_ent.unwrap() == close_pair.unwrap().0 {
+            //     //         println!("Both entities same");
+            //     //     }
+            //     // }
+            //     let (_closest_ent, closest_pos) = close_pair.unwrap();
 
+            if let Some((_closest_ent, closest_pos)) = close_pair {
                 match tower.get_target() {
                     Target::None => {}
                     Target::Point(_) => {

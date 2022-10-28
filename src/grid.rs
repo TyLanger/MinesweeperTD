@@ -208,8 +208,8 @@ impl Grid {
         // in order (0, 0), (0, 1), (0, 2)
         let index = x * GRID_HEIGHT + y;
         let tile = self.tiles.get(index);
-        //tile.copied()
-        tile.map(|&t| t)
+        tile.copied()
+        // tile.map(|&t| t)
         // I guess this replaces this:
         // match tile {
         //     Some(&t) => Some(t),
@@ -532,26 +532,26 @@ fn expand_floor(
             // }
             // clear current numbers
             let neighbours = grid.get_ring(x, y, radius - 2);
-            for ent in neighbours.iter() {
-                if let Some(info) = ent {
-                    if let Ok((mut tile, mut _sprite)) = q_tiles.get_mut(info.entity) {
-                        if tile.tile_state == TileState::Floor {
-                            tile.number = 0;
-                        }
+            for info in neighbours.iter().flatten() {
+                // if let Some(info) = ent {
+                if let Ok((mut tile, mut _sprite)) = q_tiles.get_mut(info.entity) {
+                    if tile.tile_state == TileState::Floor {
+                        tile.number = 0;
                     }
                 }
+                // }
             }
             // clear old walls
             let neighbours = grid.get_ring(x, y, radius - 1);
-            for ent in neighbours.iter() {
-                if let Some(info) = ent {
-                    if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                        if tile.tile_state == TileState::Wall {
-                            tile.tile_state = TileState::Floor;
-                            sprite.color = tile.get_colour();
-                        }
+            for info in neighbours.iter().flatten() {
+                // if let Some(info) = ent {
+                if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                    if tile.tile_state == TileState::Wall {
+                        tile.tile_state = TileState::Floor;
+                        sprite.color = tile.get_colour();
                     }
                 }
+                // }
             }
         }
         // battlements
@@ -631,15 +631,15 @@ fn expand_floor(
         } else {
             // set all to floor
             let neighbours = grid.get_ring(x, y, radius);
-            for ent in neighbours.iter() {
-                if let Some(info) = ent {
-                    if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
-                        if tile.tile_state != TileState::Tower {
-                            tile.tile_state = TileState::Floor;
-                            sprite.color = tile.get_colour();
-                        }
+            for info in neighbours.iter().flatten() {
+                // if let Some(info) = ent {
+                if let Ok((mut tile, mut sprite)) = q_tiles.get_mut(info.entity) {
+                    if tile.tile_state != TileState::Tower {
+                        tile.tile_state = TileState::Floor;
+                        sprite.color = tile.get_colour();
                     }
                 }
+                // }
             }
 
             let mut wall_set: HashSet<Coords> = HashSet::new();
@@ -718,25 +718,25 @@ fn decrement_numbers(
     for ev in ev_tower_spawned.iter() {
         // check for number around the tower
         let neighbours = grid.get_neighbours(ev.x, ev.y);
-        for n in neighbours {
-            if let Some(n) = n {
-                if let Ok(mut tile) = q_tiles.get_mut(n.entity) {
-                    if tile.tile_state == TileState::Floor && tile.number > 0 {
-                        tile.number -= 1;
+        for n in neighbours.iter().flatten() {
+            // if let Some(n) = n {
+            if let Ok(mut tile) = q_tiles.get_mut(n.entity) {
+                if tile.tile_state == TileState::Floor && tile.number > 0 {
+                    tile.number -= 1;
 
-                        // only count as filled if the tower being placed
-                        // caused this to go to 0
-                        // if it started at 0, it's fine
-                        if tile.number == 0 {
-                            println!(
-                                "Number filled at tower: {}, {} Tile: {}, {}",
-                                ev.x, ev.y, tile.x, tile.y
-                            );
-                            ev_number_filled.send(NumberFilledEvent);
-                        }
+                    // only count as filled if the tower being placed
+                    // caused this to go to 0
+                    // if it started at 0, it's fine
+                    if tile.number == 0 {
+                        println!(
+                            "Number filled at tower: {}, {} Tile: {}, {}",
+                            ev.x, ev.y, tile.x, tile.y
+                        );
+                        ev_number_filled.send(NumberFilledEvent);
                     }
                 }
             }
+            // }
         }
     }
 }

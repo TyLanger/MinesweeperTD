@@ -158,7 +158,7 @@ fn get_pincer_positions(num: u32) -> Vec<Vec2> {
     let spawn_pos =
         Vec2::new(rng.gen_range(-1.0..=1.0), rng.gen_range(-1.0..=1.0)).normalize_or_zero() * 500.;
     // opposite side
-    let other_spawn = -spawn_pos.clone(); // Vec2::new(-spawn_pos.x, -spawn_pos.y);
+    let other_spawn = -spawn_pos; // Vec2::new(-spawn_pos.x, -spawn_pos.y);
     let half_num = num / 2;
     let other_num = num - half_num;
     for _ in 0..half_num {

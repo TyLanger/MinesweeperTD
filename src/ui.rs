@@ -544,7 +544,7 @@ fn spawn_castle_stats(
                 TextSection::new(
                     format!("{:}\n", money),
                     TextStyle {
-                        font: font.clone(),
+                        font,
                         font_size: 25.0,
                         color: Color::GOLD,
                     },
