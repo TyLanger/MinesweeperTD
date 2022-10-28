@@ -8,12 +8,15 @@ pub struct DirectorPlugin;
 impl Plugin for DirectorPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<UpdateDirectorUiEvent>()
+            .add_event::<EndGameEvent>()
+            .add_event::<EndScreenEvent>()
             .insert_resource(SpawnInfo::new())
             .add_system_set(
                 SystemSet::on_update(GameState::Playing)
                     .with_system(spawn_tick)
                     .with_system(upgrade_director)
-                    .with_system(update_dirctor_ui),
+                    .with_system(update_dirctor_ui)
+                    .with_system(endgame_tick),
             );
         // app.insert_resource(SpawnInfo::new()).add_system(spawn_tick);
     }
@@ -45,6 +48,11 @@ impl SpawnInfo {
     pub fn get_time(&self) -> f32 {
         self.duration - self.wave_timer.elapsed_secs()
     }
+
+    fn start_endgame(&mut self) {
+        self.duration = 4.0;
+        self.wave_timer = Timer::from_seconds(self.duration, true);
+    }
 }
 
 #[derive(Debug)]
@@ -66,9 +74,14 @@ fn spawn_tick(
     if spawn_info.wave_timer.tick(time.delta()).just_finished() {
         // spawn using old positions
         let points = &spawn_info.positions;
-        println!("points len: {:?}", points.len());
+        // println!("points len: {:?}", points.len());
         for p in points {
-            spawn_enemy(&mut commands, p.extend(0.4), spawn_info.enemy_health, &textures);
+            spawn_enemy(
+                &mut commands,
+                p.extend(0.4),
+                spawn_info.enemy_health,
+                &textures,
+            );
         }
 
         // gen next positions and SpawnStrat
@@ -79,7 +92,7 @@ fn spawn_tick(
         spawn_info.batch_size += spawn_info.difficulty;
         let num = spawn_info.batch_size;
         spawn_info.enemy_health = 5 + num / 10;
-        println!("health is {:}", spawn_info.enemy_health);
+        // println!("health is {:}", spawn_info.enemy_health);
         // println!("Spawn {} enemies", num);
         match spawn_r {
             0 => {
@@ -110,27 +123,73 @@ fn spawn_tick(
 fn upgrade_director(
     mut ev_expand: EventReader<ExpandAreaEvent>,
     mut spawn_info: ResMut<SpawnInfo>,
+    mut ev_endgame: EventWriter<EndGameEvent>,
 ) {
     for _ev in ev_expand.iter() {
+        // println!("Expand");
         // will run 6 times.
         // runs once when you press play
         // once it runs the 6th time, that's the boss round. Survive and you win.
-        println!("Enemies are harder!");
+        // println!("Enemies are harder!");
         spawn_info.difficulty += 1;
         spawn_info.duration = 10.0 - (spawn_info.difficulty / 2) as f32;
         spawn_info.wave_timer = Timer::from_seconds(spawn_info.duration, true);
+        // 6
         if spawn_info.difficulty >= 6 {
             println!("Difficulty {}. You win!", spawn_info.difficulty);
+            spawn_info.start_endgame();
+            ev_endgame.send(EndGameEvent);
+        }
+    }
+}
+
+struct EndGameEvent;
+
+#[derive(Component)]
+struct EndGame {
+    timer: Timer,
+}
+
+pub struct EndScreenEvent {
+    pub win: bool,
+}
+
+fn endgame_tick(
+    mut commands: Commands,
+    ev_end: EventReader<EndGameEvent>,
+    mut q_end: Query<&mut EndGame>,
+    time: Res<Time>,
+    mut ev_end_screen: EventWriter<EndScreenEvent>,
+) {
+    // get the first event
+    // make the end timer
+    if !ev_end.is_empty() {
+        // println!("Not empty"); // might auto clear after 2 frames
+        // if q_end.is_empty() {
+        // println!("Create end timer");
+        commands.spawn().insert(EndGame {
+            // 30.0
+            timer: Timer::from_seconds(30.0, false),
+        });
+        // }
+    }
+    // tick down if it exists
+    for mut end in q_end.iter_mut() {
+        // println!("Tick");
+        if end.timer.tick(time.delta()).just_finished() {
+            // you really win
+            // println!("You really win");
+            ev_end_screen.send(EndScreenEvent { win: true });
         }
     }
 }
 
 struct UpdateDirectorUiEvent;
 
-fn update_dirctor_ui(ev_update: EventReader<UpdateDirectorUiEvent>, spawn_info: Res<SpawnInfo>) {
+fn update_dirctor_ui(ev_update: EventReader<UpdateDirectorUiEvent>, _spawn_info: Res<SpawnInfo>) {
     if !ev_update.is_empty() {
         ev_update.clear();
-        println!("Spawn Info changed. batch_size: {}", spawn_info.batch_size);
+        // println!("Spawn Info changed. batch_size: {}", spawn_info.batch_size);
     }
 }
 

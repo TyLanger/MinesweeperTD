@@ -34,7 +34,12 @@ impl Enemy {
     }
 }
 
-pub fn spawn_enemy(commands: &mut Commands, position: Vec3, health: u32, textures: &Res<SpriteAssets>) {
+pub fn spawn_enemy(
+    commands: &mut Commands,
+    position: Vec3,
+    health: u32,
+    textures: &Res<SpriteAssets>,
+) {
     commands
         .spawn_bundle(SpriteBundle {
             texture: textures.duck.clone(),

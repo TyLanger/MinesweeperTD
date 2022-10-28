@@ -33,7 +33,7 @@ enum GameState {
     MainMenu,
     // Tutorial,
     Playing,
-    // End,
+    End,
 }
 
 pub struct MouseWorldPos(Vec2);

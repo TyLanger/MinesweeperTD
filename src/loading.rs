@@ -45,4 +45,7 @@ pub struct SpriteAssets {
 
     #[asset(path = "sprites/shotgun.png")]
     pub shotgun: Handle<Image>,
+
+    #[asset(path = "sprites/title.png")]
+    pub title: Handle<Image>,
 }

@@ -840,7 +840,7 @@ fn swarm_init(
 
                     sprite: Sprite {
                         // color: Color::PURPLE,
-                            custom_size: Some(Vec2::splat(16.0)),
+                        custom_size: Some(Vec2::splat(16.0)),
                         ..default()
                     },
                     transform: Transform::from_translation(

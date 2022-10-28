@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::{
+    director::EndScreenEvent,
     enemy::Enemy,
     grid::{Grid, Tile},
     loading::SpriteAssets,
@@ -112,7 +113,7 @@ fn spawn_castle(
                     ..default()
                 })
                 .insert(Castle {
-                    health: 100,
+                    health: 20,
                     money: 100,
                 })
                 .insert(Collider::cuboid(12.5, 12.5))
@@ -151,6 +152,7 @@ fn enemy_collision(
     rapier_context: Res<RapierContext>,
     mut q_castle: Query<(Entity, &mut Castle)>,
     q_enemies: Query<(Entity, &Enemy)>,
+    mut ev_end_screen: EventWriter<EndScreenEvent>,
 ) {
     for (castle_ent, mut castle) in q_castle.iter_mut() {
         // let intersections = rapier_context.intersections_with(castle_ent);
@@ -161,6 +163,9 @@ fn enemy_collision(
             }
         }
 
+        if castle.health == 0 {
+            ev_end_screen.send(EndScreenEvent { win: false });
+        }
         // is _inter relevant? It was always true when I tested other intersections
         // so when is it false?
         // for (a, b, _inter) in intersections {

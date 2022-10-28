@@ -1,7 +1,11 @@
 use bevy::prelude::*;
 
 use crate::{
-    castle::Castle, director::SpawnInfo, loading::FontAssets, tower::TowerServer, GameState,
+    castle::Castle,
+    director::{EndScreenEvent, SpawnInfo},
+    loading::{FontAssets, SpriteAssets},
+    tower::TowerServer,
+    GameState,
 };
 
 pub struct UiPlugin;
@@ -10,7 +14,8 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<ButtonPressEvent>()
             .add_event::<ButtonHoverEvent>()
-            .add_event::<SwitchPlayEvent>();
+            .add_event::<SwitchPlayEvent>()
+            .add_event::<EndButtonClickEvent>();
         app.add_system_set(SystemSet::on_enter(GameState::MainMenu).with_system(setup_main_menu))
             .add_system_set(
                 SystemSet::on_update(GameState::MainMenu)
@@ -29,13 +34,17 @@ impl Plugin for UiPlugin {
                 .with_system(update_buttons)
                 .with_system(update_castle_stats)
                 .with_system(update_tower_info_panel)
-                .with_system(update_director_panel),
+                .with_system(update_director_panel)
+                .with_system(setup_end_menu),
         );
-        // .add_startup_system(spawn_tower_menu.after(setup_towers))
-        // app.add_event::<ButtonPressEvent>()
-        //     .add_event::<SwitchPlayEvent>()
-        //     .add_system(update_buttons)
-        //     .add_system(update_castle_stats);
+
+        app.add_system_set(
+            SystemSet::on_update(GameState::End)
+                .with_system(click_end_button)
+                .with_system(press_f5),
+        );
+
+        app.add_system_set(SystemSet::on_exit(GameState::End).with_system(cleanup_end_menu));
     }
 }
 
@@ -63,7 +72,25 @@ pub struct ButtonInfo {
 #[derive(Component)]
 pub struct StartButton;
 
-fn setup_main_menu(mut commands: Commands, font_assets: Res<FontAssets>) {
+fn setup_main_menu(mut commands: Commands, font_assets: Res<FontAssets>, textures: Res<SpriteAssets>) {
+    commands
+        .spawn_bundle(SpriteBundle {
+            texture: textures.title.clone(),
+            // sprite: Sprite {
+            //     // color,
+            //     custom_size: Some(Vec2::new(190.0 * 2.0, 32.0 * 2.0)),
+            //     ..default()
+            // },
+            
+            transform: Transform {
+                translation: Vec3::new(0.0, 125.0, 0.2),
+                // scale: Vec3::new(2.0, 2.0, 1.0),
+                ..default()
+            },
+            ..default()
+        })
+        .insert(StartButton);
+    
     commands
         .spawn_bundle(ButtonBundle {
             style: Style {
@@ -209,8 +236,8 @@ fn spawn_tower_menu(
                         padding: UiRect {
                             left: Val::Px(2.0),
                             right: Val::Px(2.0),
-                            top: Val::Px(2.0),
-                            bottom: Val::Px(2.0),
+                            top: Val::Px(8.0),
+                            bottom: Val::Px(8.0),
                         },
                         // whitespace around the button
                         margin: UiRect {
@@ -629,5 +656,157 @@ fn update_castle_stats(
             text.sections[1].value = format!("{:}\n", castle.health);
             text.sections[3].value = format!("{:}\n", castle.money);
         }
+    }
+}
+
+#[derive(Component)]
+struct EndButton;
+
+fn setup_end_menu(
+    mut commands: Commands,
+    font_assets: Res<FontAssets>,
+    mut ev_end: EventReader<EndScreenEvent>,
+    mut state: ResMut<State<GameState>>,
+) {
+    for ev in ev_end.iter() {
+        state.set(GameState::End).unwrap();
+        let text = if ev.win { "You Win!" } else { "You Lose." };
+        commands
+            .spawn_bundle(ButtonBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        left: Val::Percent(45.0),
+                        right: Val::Auto,
+                        top: Val::Percent(45.0),
+                        bottom: Val::Auto,
+                    },
+                    size: Size::new(Val::Auto, Val::Auto),
+                    // margin: UiRect::all(Val::Auto),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    padding: UiRect {
+                        left: Val::Px(2.0),
+                        right: Val::Px(2.0),
+                        top: Val::Px(8.0),
+                        bottom: Val::Px(8.0),
+                    },
+                    // whitespace around the button
+                    margin: UiRect {
+                        left: Val::Px(2.0),
+                        right: Val::Px(2.0),
+                        top: Val::Px(2.0),
+                        bottom: Val::Px(2.0),
+                        //..default()
+                    },
+                    ..default()
+                },
+                color: NORMAL_BUTTON.into(),
+                ..default()
+            })
+            .insert(EndButton)
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle {
+                    text: Text::from_section(
+                        text.to_string(),
+                        TextStyle {
+                            font: font_assets.fira_sans.clone(),
+                            font_size: 40.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    ..default()
+                });
+            });
+    }
+}
+
+fn click_end_button(
+    // mut state: ResMut<State<GameState>>,
+    mut q_interaction: Query<
+        (&Interaction, &mut UiColor),
+        (Changed<Interaction>, With<Button>, With<EndButton>),
+    >,
+    mut ev_end: EventWriter<EndButtonClickEvent>,
+) {
+    for (interaction, mut color) in q_interaction.iter_mut() {
+        match *interaction {
+            Interaction::Clicked => {
+                // state.set(GameState::MainMenu).unwrap();
+                // switch_to_playing(state);
+                // ev_switch.send(SwitchPlayEvent);
+                ev_end.send(EndButtonClickEvent);
+            }
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+            }
+            Interaction::None => {
+                *color = NORMAL_BUTTON.into();
+            }
+        }
+    }
+}
+
+fn cleanup_end_menu(mut commands: Commands, q_button: Query<Entity, With<EndButton>>) {
+    for entity in q_button.iter() {
+        commands.entity(entity).despawn_recursive();
+    }
+}
+
+struct EndButtonClickEvent;
+
+fn press_f5(
+    mut commands: Commands,
+    font_assets: Res<FontAssets>,
+    ev_push: EventReader<EndButtonClickEvent>,
+) {
+    if !ev_push.is_empty() {
+        commands
+            .spawn_bundle(ButtonBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        left: Val::Percent(40.0),
+                        right: Val::Auto,
+                        top: Val::Percent(55.0),
+                        bottom: Val::Auto,
+                    },
+                    size: Size::new(Val::Auto, Val::Auto),
+                    // margin: UiRect::all(Val::Auto),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    padding: UiRect {
+                        left: Val::Px(2.0),
+                        right: Val::Px(2.0),
+                        top: Val::Px(8.0),
+                        bottom: Val::Px(8.0),
+                    },
+                    // whitespace around the button
+                    margin: UiRect {
+                        left: Val::Px(2.0),
+                        right: Val::Px(2.0),
+                        top: Val::Px(2.0),
+                        bottom: Val::Px(2.0),
+                        //..default()
+                    },
+                    ..default()
+                },
+                color: NORMAL_BUTTON.into(),
+                ..default()
+            })
+            .insert(EndButton)
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle {
+                    text: Text::from_section(
+                        "Press F5. I don't know how to reset the game. Thanks.",
+                        TextStyle {
+                            font: font_assets.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    ..default()
+                });
+            });
     }
 }
