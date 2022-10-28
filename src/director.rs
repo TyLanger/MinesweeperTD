@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::prelude::*;
 
-use crate::{castle::ExpandAreaEvent, enemy::spawn_enemy, GameState};
+use crate::{castle::ExpandAreaEvent, enemy::spawn_enemy, loading::SpriteAssets, GameState};
 
 pub struct DirectorPlugin;
 
@@ -24,6 +24,7 @@ pub struct SpawnInfo {
     pub wave_timer: Timer,
     pub batch_size: u32,
     pub difficulty: u32,
+    pub enemy_health: u32,
     pub next_strat: SpawnStrat,
     pub positions: Vec<Vec2>,
 }
@@ -35,6 +36,7 @@ impl SpawnInfo {
             wave_timer: Timer::from_seconds(10.0, true),
             batch_size: 5,
             difficulty: 0,
+            enemy_health: 5,
             next_strat: SpawnStrat::Spread,
             positions: get_spread_positions(10),
         }
@@ -58,13 +60,15 @@ fn spawn_tick(
     mut spawn_info: ResMut<SpawnInfo>,
     time: Res<Time>,
     mut ev_update: EventWriter<UpdateDirectorUiEvent>,
+    textures: Res<SpriteAssets>,
 ) {
     // spawn_info.time_elapsed += time.delta_seconds();
     if spawn_info.wave_timer.tick(time.delta()).just_finished() {
         // spawn using old positions
         let points = &spawn_info.positions;
+        println!("points len: {:?}", points.len());
         for p in points {
-            spawn_enemy(&mut commands, p.extend(0.4));
+            spawn_enemy(&mut commands, p.extend(0.4), spawn_info.enemy_health, &textures);
         }
 
         // gen next positions and SpawnStrat
@@ -74,25 +78,27 @@ fn spawn_tick(
         // increase every spawn
         spawn_info.batch_size += spawn_info.difficulty;
         let num = spawn_info.batch_size;
-        println!("Spawn {} enemies", num);
+        spawn_info.enemy_health = 5 + num / 10;
+        println!("health is {:}", spawn_info.enemy_health);
+        // println!("Spawn {} enemies", num);
         match spawn_r {
             0 => {
-                println!("Next is Burst");
+                // println!("Next is Burst");
                 spawn_info.next_strat = SpawnStrat::Burst;
                 spawn_info.positions = get_burst_positions(num);
             }
             1 => {
-                println!("Next is Spread");
+                // println!("Next is Spread");
                 spawn_info.next_strat = SpawnStrat::Spread;
                 spawn_info.positions = get_spread_positions(num);
             }
             2 => {
-                println!("Next is Line");
+                // println!("Next is Line");
                 spawn_info.next_strat = SpawnStrat::Line;
                 spawn_info.positions = get_line_positions(num);
             }
             _ => {
-                println!("Next is Pincer");
+                // println!("Next is Pincer");
                 spawn_info.next_strat = SpawnStrat::Pincer;
                 spawn_info.positions = get_pincer_positions(num);
             }
@@ -113,6 +119,9 @@ fn upgrade_director(
         spawn_info.difficulty += 1;
         spawn_info.duration = 10.0 - (spawn_info.difficulty / 2) as f32;
         spawn_info.wave_timer = Timer::from_seconds(spawn_info.duration, true);
+        if spawn_info.difficulty >= 6 {
+            println!("Difficulty {}. You win!", spawn_info.difficulty);
+        }
     }
 }
 

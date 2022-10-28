@@ -4,6 +4,7 @@ use bevy_rapier2d::prelude::*;
 use crate::{
     enemy::Enemy,
     grid::{Grid, Tile},
+    loading::SpriteAssets,
     GameState,
 };
 
@@ -93,6 +94,7 @@ fn spawn_castle(
     mut commands: Commands,
     q_tiles: Query<Entity, With<Tile>>,
     grid: Res<Grid>,
+    textures: Res<SpriteAssets>,
     // keyboard: Res<Input<KeyCode>>,
 ) {
     // if keyboard.just_pressed(KeyCode::C) {
@@ -100,11 +102,12 @@ fn spawn_castle(
         if let Ok(ent) = q_tiles.get(info.entity) {
             let child = commands
                 .spawn_bundle(SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::GOLD,
-                        custom_size: Some(Vec2::splat(25.0)),
-                        ..default()
-                    },
+                    texture: textures.castle.clone(),
+                    // sprite: Sprite {
+                    //     color: Color::GOLD,
+                    //     custom_size: Some(Vec2::splat(25.0)),
+                    //     ..default()
+                    // },
                     transform: Transform::from_xyz(0.0, 0.0, 0.3),
                     ..default()
                 })

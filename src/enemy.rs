@@ -3,6 +3,7 @@ use bevy_rapier2d::prelude::*;
 
 use crate::{
     castle::Castle,
+    loading::SpriteAssets,
     tower::{Movement, Target},
 };
 
@@ -20,8 +21,8 @@ pub struct Enemy {
 }
 
 impl Enemy {
-    fn new() -> Self {
-        Enemy { health: 5 }
+    fn new(health: u32) -> Self {
+        Enemy { health }
     }
 
     pub fn take_damage(&mut self, damage: u32) {
@@ -33,18 +34,19 @@ impl Enemy {
     }
 }
 
-pub fn spawn_enemy(commands: &mut Commands, position: Vec3) {
+pub fn spawn_enemy(commands: &mut Commands, position: Vec3, health: u32, textures: &Res<SpriteAssets>) {
     commands
         .spawn_bundle(SpriteBundle {
-            sprite: Sprite {
-                color: Color::CRIMSON,
-                custom_size: Some(Vec2::splat(20.0)),
-                ..default()
-            },
+            texture: textures.duck.clone(),
+            // sprite: Sprite {
+            //     color: Color::CRIMSON,
+            //     custom_size: Some(Vec2::splat(20.0)),
+            //     ..default()
+            // },
             transform: Transform::from_translation(position),
             ..default()
         })
-        .insert(Enemy::new())
+        .insert(Enemy::new(health))
         .insert(Movement {
             target: Target::Point(Some(Vec3::ZERO)),
             speed: 50.0,

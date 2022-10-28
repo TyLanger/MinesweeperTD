@@ -425,6 +425,23 @@ fn spawn_director_menu(mut commands: Commands, fonts: Res<FontAssets>) {
                         },
                     ),
                     TextSection::new(
+                        "With ",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            color: Color::rgb(0.9, 0.9, 0.9),
+                        },
+                    ),
+                    TextSection::new(
+                        "5 HP\n",
+                        TextStyle {
+                            font: fonts.fira_sans.clone(),
+                            font_size: 20.0,
+                            // #e43b44
+                            color: Color::rgb_u8(0xe4, 0x3b, 0x44),
+                        },
+                    ),
+                    TextSection::new(
                         "in a ",
                         TextStyle {
                             font: fonts.fira_sans.clone(),
@@ -438,7 +455,8 @@ fn spawn_director_menu(mut commands: Commands, fonts: Res<FontAssets>) {
                             font: fonts.fira_sans.clone(),
                             font_size: 20.0,
                             // #0099db
-                            color: Color::rgb_u8(0x00, 0x99, 0xdb),
+                            // #b55088
+                            color: Color::rgb_u8(0xb5, 0x50, 0x88),
                         },
                     ),
                     TextSection::new(
@@ -495,13 +513,16 @@ fn update_director_panel(
         // 0 Director
         // 1 Will spawn
         // 2 15 enemies
-        // 3 in a
-        // 4 Burst
-        // 5 in
-        // 6 5.5s
+        // 3 With
+        // 4 5 HP
+        // 5 in a
+        // 6 Burst
+        // 7 in
+        // 8 5.5s
         text.sections[2].value = format!("{:} enemies\n", spawn_info.batch_size);
-        text.sections[4].value = format!("{:?}\n", spawn_info.next_strat);
-        text.sections[6].value = format!("{:.1}s\n", spawn_info.get_time());
+        text.sections[4].value = format!("{:?} HP\n", spawn_info.enemy_health);
+        text.sections[6].value = format!("{:?}\n", spawn_info.next_strat);
+        text.sections[8].value = format!("{:.1}s\n", spawn_info.get_time());
     }
 }
 

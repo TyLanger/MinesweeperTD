@@ -2,6 +2,7 @@ use crate::{
     castle::Castle,
     enemy::Enemy,
     grid::{clear_selection, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
+    loading::SpriteAssets,
     ui::{update_buttons, ButtonPressEvent},
     GameState,
 };
@@ -16,24 +17,38 @@ impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<TowerPlacedEvent>()
             .insert_resource(TowerServer { towers: Vec::new() });
-        app.add_system_set(SystemSet::on_enter(GameState::Loading).with_system(setup_towers));
+        app.add_system_set(SystemSet::on_exit(GameState::Loading).with_system(setup_towers));
         // the timing on spawning a tower is too complicated
         // need to press the button to send the event
         // then run this to process the event
         // before clear_selection runs and removes the Selection component
         // it removes the Selection because clicking away from a tile clears selection
         // which includes clicking on a button.
-        app.add_system(spawn_tower.after(update_buttons).before(clear_selection))
-            .add_system(update_tower_position.before(tower_tick))
-            .add_system(tower_tick)
-            .add_system(move_bullets)
-            .add_system(bullet_collision.after(move_bullets))
-            .add_system(bullet_tick.after(bullet_collision))
-            .add_system(bomb_tick)
-            .add_system(explosion_damage)
-            .add_system(update_tower_area_indicator)
-            .add_system(swarm_init)
-            .add_system(swarm_tick);
+        app.add_system_set(
+            SystemSet::on_update(GameState::Playing)
+                .with_system(spawn_tower.after(update_buttons).before(clear_selection))
+                .with_system(update_tower_position.before(tower_tick))
+                .with_system(tower_tick)
+                .with_system(move_bullets)
+                .with_system(bullet_collision.after(move_bullets))
+                .with_system(bullet_tick.after(bullet_collision))
+                .with_system(bomb_tick)
+                .with_system(explosion_damage)
+                .with_system(update_tower_area_indicator)
+                .with_system(swarm_init)
+                .with_system(swarm_tick),
+        );
+        // app.add_system(spawn_tower.after(update_buttons).before(clear_selection))
+        //     .add_system(update_tower_position.before(tower_tick))
+        //     .add_system(tower_tick)
+        //     .add_system(move_bullets)
+        //     .add_system(bullet_collision.after(move_bullets))
+        //     .add_system(bullet_tick.after(bullet_collision))
+        //     .add_system(bomb_tick)
+        //     .add_system(explosion_damage)
+        //     .add_system(update_tower_area_indicator)
+        //     .add_system(swarm_init)
+        //     .add_system(swarm_tick);
     }
 }
 
@@ -101,9 +116,10 @@ impl Tower {
                     let spread_target = Target::Direction(Some(dir.extend(0.0)));
                     commands
                         .spawn_bundle(SpriteBundle {
+                            texture: self.visuals.texture.clone(),
                             sprite: Sprite {
-                                color: Color::BLACK,
-                                custom_size: Some(Vec2::new(5.0, 5.0)),
+                                // color: Color::BLACK,
+                                custom_size: Some(Vec2::splat(16.0)),
                                 ..default()
                             },
                             transform: Transform::from_translation(
@@ -122,9 +138,11 @@ impl Tower {
                 // how?
                 commands
                     .spawn_bundle(SpriteBundle {
+                        texture: self.visuals.texture.clone(),
+
                         sprite: Sprite {
-                            color: Color::BLACK,
-                            custom_size: Some(Vec2::new(5.0, 5.0)),
+                            // color: Color::BLACK,
+                            custom_size: Some(Vec2::splat(16.0)),
                             ..default()
                         },
                         transform: Transform::from_translation(
@@ -163,9 +181,11 @@ impl Tower {
 
                 commands
                     .spawn_bundle(SpriteBundle {
+                        texture: self.visuals.texture.clone(),
+
                         sprite: Sprite {
-                            color: Color::BLACK,
-                            custom_size: Some(Vec2::new(8.0, 8.0)),
+                            // color: Color::BLACK,
+                            custom_size: Some(Vec2::splat(16.0)),
                             ..default()
                         },
                         transform: Transform::from_translation(
@@ -209,6 +229,7 @@ impl Tower {
 
 #[derive(Clone)]
 pub struct TowerVisuals {
+    pub texture: Handle<Image>,
     pub name: String,
     pub color: Color,
     pub cost: u32,
@@ -228,7 +249,7 @@ impl Bullet {
             // impact_type,
             damage,
             movement,
-            lifetime: Timer::from_seconds(3.0, false),
+            lifetime: Timer::from_seconds(2.0, false),
         }
     }
 
@@ -387,11 +408,12 @@ pub struct TowerServer {
 }
 
 // set up the different towers you can spawn here.
-pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
+pub fn setup_towers(mut tower_server: ResMut<TowerServer>, textures: Res<SpriteAssets>) {
     let basic_tower = Tower {
         range: 80.0,
         cost: 10,
         visuals: TowerVisuals {
+            texture: textures.pistol.clone(),
             name: "Basic".to_string(),
             color: Color::GREEN,
             cost: 10,
@@ -424,6 +446,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
         range: 80.0,
         cost: 15,
         visuals: TowerVisuals {
+            texture: textures.shotgun.clone(),
             name: "Shotgun".to_string(),
             color: Color::RED,
             cost: 10,
@@ -456,8 +479,9 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
         range: 100.0,
         cost: 30,
         visuals: TowerVisuals {
+            texture: textures.bomb.clone(),
             name: "Bomb".to_string(),
-            color: Color::BLUE,
+            color: Color::ORANGE,
             cost: 20,
         },
         bullet: Bullet::new(
@@ -477,8 +501,9 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
         range: 150.0,
         cost: 20,
         visuals: TowerVisuals {
+            texture: textures.magic.clone(),
             name: "Swarm".to_string(),
-            color: Color::ORANGE,
+            color: Color::PURPLE,
             cost: 20,
         },
         bullet: Bullet::new(
@@ -555,11 +580,12 @@ fn spawn_tower(
                         castle.money -= tower.cost;
                         let child = commands
                             .spawn_bundle(SpriteBundle {
-                                sprite: Sprite {
-                                    color: tower.visuals.color,
-                                    custom_size: Some(Vec2::new(15.0, 15.0)),
-                                    ..default()
-                                },
+                                texture: tower.visuals.texture.clone(),
+                                // sprite: Sprite {
+                                //     color: tower.visuals.color,
+                                //     custom_size: Some(Vec2::new(15.0, 15.0)),
+                                //     ..default()
+                                // },
                                 transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
                                 ..default()
                             })
@@ -649,6 +675,7 @@ fn move_bullets(mut q_bullets: Query<(&mut Transform, &Bullet)>, time: Res<Time>
                 }
             }
         }
+        trans.rotate_local_z(-3.0 * time.delta_seconds());
     }
 }
 
@@ -730,6 +757,7 @@ fn bomb_tick(
 
         let pos = Vec2::lerp(start_lerp, start_lerp + end_lerp, t);
         trans.translation = (bomb.start_pos + pos).extend(0.3);
+        trans.rotate_local_z(-3.0 * time.delta_seconds());
     }
 }
 
@@ -744,7 +772,7 @@ impl Explosion {
     fn new() -> Self {
         Explosion {
             damage: 4,
-            danger_timer: Timer::from_seconds(0.15, false),
+            danger_timer: Timer::from_seconds(0.02, false),
             lifetime_timer: Timer::from_seconds(0.3, false),
         }
     }
@@ -768,13 +796,19 @@ fn explosion_damage(
             commands.entity(bomb_ent).despawn_recursive();
         }
         // remove the danger after 0.15s
+        // that's way op. It does damage every frame then
+        // after 0.02s. 1 frame is 0.016 so that should give 2 frames?
         if bomb.danger_timer.tick(time.delta()).just_finished() {
             commands.entity(bomb_ent).remove::<Collider>();
         }
     }
 }
 
-fn swarm_init(mut commands: Commands, mut q_swarm: Query<(&Transform, &mut Swarm), Added<Swarm>>) {
+fn swarm_init(
+    mut commands: Commands,
+    mut q_swarm: Query<(&Transform, &mut Swarm), Added<Swarm>>,
+    textures: Res<SpriteAssets>,
+) {
     for (trans, mut swarm) in q_swarm.iter_mut() {
         let t = swarm.target;
         let p = match t {
@@ -802,9 +836,11 @@ fn swarm_init(mut commands: Commands, mut q_swarm: Query<(&Transform, &mut Swarm
 
             let e = commands
                 .spawn_bundle(SpriteBundle {
+                    texture: textures.magic.clone(),
+
                     sprite: Sprite {
-                        color: Color::PURPLE,
-                        custom_size: Some(Vec2::new(5.0, 5.0)),
+                        // color: Color::PURPLE,
+                            custom_size: Some(Vec2::splat(16.0)),
                         ..default()
                     },
                     transform: Transform::from_translation(
