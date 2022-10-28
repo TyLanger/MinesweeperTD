@@ -112,8 +112,7 @@ fn upgrade_director(
         println!("Enemies are harder!");
         spawn_info.difficulty += 1;
         spawn_info.duration = 10.0 - (spawn_info.difficulty / 2) as f32;
-        spawn_info.wave_timer =
-            Timer::from_seconds(spawn_info.duration, true);
+        spawn_info.wave_timer = Timer::from_seconds(spawn_info.duration, true);
     }
 }
 

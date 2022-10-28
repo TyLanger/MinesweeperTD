@@ -65,7 +65,7 @@ fn movement(mut q_enemies: Query<(&mut Transform, &Movement, &Enemy)>, time: Res
                         dir.normalize_or_zero() * time.delta_seconds() * movement.speed;
                 }
             }
-            Target::Follow(_) => todo!(),
+            // Target::Follow(_) => todo!(),
             Target::Direction(_) => todo!(),
         }
     }

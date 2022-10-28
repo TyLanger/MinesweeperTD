@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 
-use crate::{castle::Castle, loading::FontAssets, tower::TowerServer, GameState, director::SpawnInfo};
+use crate::{
+    castle::Castle, director::SpawnInfo, loading::FontAssets, tower::TowerServer, GameState,
+};
 
 pub struct UiPlugin;
 
@@ -348,9 +350,7 @@ fn update_tower_info_panel(
                     // swarm
                     "Swarm Tower\n"
                 }
-                _ => {
-                    "Error Tower\n"
-                }
+                _ => "Error Tower\n",
             };
             // 0 is Basic Tower\n
             // 1 is Cost
@@ -365,10 +365,7 @@ fn update_tower_info_panel(
     }
 }
 
-fn spawn_director_menu(
-    mut commands: Commands,
-    fonts: Res<FontAssets>,
-) {
+fn spawn_director_menu(mut commands: Commands, fonts: Res<FontAssets>) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -392,7 +389,6 @@ fn spawn_director_menu(
             ..default()
         })
         .with_children(|root| {
-            
             root.spawn_bundle(
                 TextBundle::from_sections([
                     // fields
@@ -403,7 +399,6 @@ fn spawn_director_menu(
                     //     next_strat: todo!(),
                     //     positions: todo!(),
                     // }
-
                     TextSection::new(
                         "Director\n",
                         TextStyle {
@@ -483,9 +478,9 @@ fn spawn_director_menu(
                     //     ..default()
                     // },
                     ..default()
-                    }),
-                )
-                .insert(DirectorInfoPanel);
+                }),
+            )
+            .insert(DirectorInfoPanel);
         });
 }
 
@@ -497,12 +492,10 @@ fn update_director_panel(
     spawn_info: Res<SpawnInfo>,
 ) {
     for mut text in q_ui.iter_mut() {
-        
-
         // 0 Director
         // 1 Will spawn
         // 2 15 enemies
-        // 3 in a 
+        // 3 in a
         // 4 Burst
         // 5 in
         // 6 5.5s
@@ -569,7 +562,6 @@ fn spawn_castle_stats(
                     // right: Val::Px(5.0),
                     right: Val::Percent(20.5),
                     // left: Val::Percent(81.5),
-                    
                     ..default()
                 },
                 // flex_shrink: 0.0,

@@ -31,7 +31,9 @@ impl Plugin for TowerPlugin {
             .add_system(bullet_tick.after(bullet_collision))
             .add_system(bomb_tick)
             .add_system(explosion_damage)
-            .add_system(update_tower_area_indicator);
+            .add_system(update_tower_area_indicator)
+            .add_system(swarm_init)
+            .add_system(swarm_tick);
     }
 }
 
@@ -55,13 +57,13 @@ impl Tower {
     fn shoot(&mut self, commands: &mut Commands, target: Target) {
         self.gun.state = ShootState::BetweenShots;
 
-        match self.gun.multi_type {
+        match &self.gun.multi_type {
             MultiShotType::Spread(spread) => {
                 // convert shoot types to direction
                 let front_dir = match target {
                     Target::None => Vec2::ZERO - self.position.unwrap(),
                     Target::Point(point) => point.unwrap().truncate() - self.position.unwrap(),
-                    Target::Follow(_) => Vec2::ZERO - self.position.unwrap(),
+                    // Target::Follow(_) => Vec2::ZERO - self.position.unwrap(),
                     Target::Direction(dir) => dir.unwrap().truncate(),
                 };
 
@@ -149,7 +151,7 @@ impl Tower {
                         let prediction = p + dir_to_center.normalize_or_zero() * 50.0;
                         prediction.truncate() - self.position.unwrap()
                     }
-                    Target::Follow(_) => todo!(),
+                    // Target::Follow(_) => todo!(),
                     Target::Direction(d) => d.unwrap().truncate(),
                 };
                 let mag = dir.length();
@@ -179,7 +181,19 @@ impl Tower {
                         timer: Timer::from_seconds(1.0, false),
                     });
             }
-            MultiShotType::Swarm(_) => {}
+            MultiShotType::Swarm(s) => {
+                let mut s = s.clone();
+                s.target = target;
+                s.bullet = Some(self.bullet.clone());
+                commands
+                    .spawn()
+                    .insert(Transform::from_translation(
+                        self.position.unwrap().extend(0.0),
+                    ))
+                    .insert(s.clone())
+                    .insert(Collider::ball(self.range))
+                    .insert(Sensor);
+            }
         }
     }
 
@@ -202,17 +216,16 @@ pub struct TowerVisuals {
 
 #[derive(Component, Clone)]
 struct Bullet {
-    impact_type: ImpactType,
+    // impact_type: ImpactType,
     damage: u32,
     movement: Movement,
     lifetime: Timer,
 }
 
 impl Bullet {
-    fn new(impact_type: ImpactType, damage: u32, movement: Movement) -> Self {
+    fn new(damage: u32, movement: Movement) -> Self {
         Bullet {
-            impact_type,
-
+            // impact_type,
             damage,
             movement,
             lifetime: Timer::from_seconds(3.0, false),
@@ -225,13 +238,13 @@ impl Bullet {
     }
 }
 
-#[derive(Clone)]
-enum ImpactType {
-    // number of pierces
-    Pierce(usize),
-    // radius of the explosion
-    Explosion(f32),
-}
+// #[derive(Clone)]
+// enum ImpactType {
+//     // number of pierces
+//     Pierce(usize),
+//     // radius of the explosion
+//     Explosion(f32),
+// }
 
 #[derive(Clone, Component)]
 pub struct Movement {
@@ -245,18 +258,18 @@ pub enum Target {
     #[default]
     None,
     Point(Option<Vec3>),
-    Follow(Option<Entity>),
+    // Follow(Option<Entity>),
     Direction(Option<Vec3>),
 }
 
 #[derive(Clone)]
 struct Gun {
-    clip_size: u32,
-    // timer or float?
-    time_between_shots: f32,
+    // clip_size: u32,
+    // // timer or float?
+    // time_between_shots: f32,
     timer_between: Timer,
-    reload_time: f32,
-    reload_timer: Timer,
+    // reload_time: f32,
+    // reload_timer: Timer,
     // state?
     // shooting, reloading, rest?
     multi_type: MultiShotType,
@@ -265,18 +278,18 @@ struct Gun {
 
 impl Gun {
     fn new(
-        clip_size: u32,
+        // clip_size: u32,
         time_between_shots: f32,
-        reload_time: f32,
+        // reload_time: f32,
         multi_type: MultiShotType,
     ) -> Self {
         // don't make a 0.0s timer. Will crash
         Gun {
-            clip_size,
-            time_between_shots,
+            // clip_size,
+            // time_between_shots,
             timer_between: Timer::from_seconds(time_between_shots, true),
-            reload_time,
-            reload_timer: Timer::from_seconds(reload_time, false),
+            // reload_time,
+            // reload_timer: Timer::from_seconds(reload_time, false),
             multi_type,
             state: ShootState::Ready,
         }
@@ -305,16 +318,19 @@ enum MultiShotType {
     Swarm(Swarm),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Component)]
 pub struct Swarm {
-    num: u32,
+    // num: u32,
+    timer: Timer,
+    bullet: Option<Bullet>,
+    target: Target,
+    entities: Vec<Entity>,
 }
 
 #[derive(Component)]
 struct SwarmComponent {
-    start_pos: Vec2,
-    end_pos: Vec2,
-    timer: Timer,
+    start_pos: Vec3,
+    end_pos: Vec3,
 }
 
 #[derive(Component)]
@@ -371,7 +387,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             cost: 10,
         },
         bullet: Bullet::new(
-            ImpactType::Pierce(0),
+            // ImpactType::Pierce(0),
             1,
             Movement {
                 // should I even set a default?
@@ -382,11 +398,11 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             },
         ),
         gun: Gun {
-            clip_size: 1,
-            time_between_shots: 0.3,
+            // clip_size: 1,
+            // time_between_shots: 0.3,
             timer_between: Timer::from_seconds(0.3, true),
-            reload_time: 1.5,
-            reload_timer: Timer::from_seconds(1.5, false),
+            // reload_time: 1.5,
+            // reload_timer: Timer::from_seconds(1.5, false),
             multi_type: MultiShotType::Burst(1),
             state: ShootState::Ready,
         },
@@ -403,7 +419,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             cost: 10,
         },
         bullet: Bullet::new(
-            ImpactType::Pierce(0),
+            // ImpactType::Pierce(0),
             1,
             Movement {
                 target: Target::Direction(None),
@@ -411,11 +427,11 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             },
         ),
         gun: Gun {
-            clip_size: 2,
-            time_between_shots: 0.5,
+            // clip_size: 2,
+            // time_between_shots: 0.5,
             timer_between: Timer::from_seconds(0.5, true),
-            reload_time: 1.5,
-            reload_timer: Timer::from_seconds(1.5, false),
+            // reload_time: 1.5,
+            // reload_timer: Timer::from_seconds(1.5, false),
             multi_type: MultiShotType::Spread(Spread {
                 num_shots: 3,
                 spread_angle_deg: 15.0,
@@ -435,20 +451,20 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             cost: 20,
         },
         bullet: Bullet::new(
-            ImpactType::Explosion(20.0),
+            // ImpactType::Explosion(20.0),
             3,
             Movement {
                 target: Target::Point(None),
                 speed: 100.0,
             },
         ),
-        gun: Gun::new(1, 1.5, 2.0, MultiShotType::Bomb),
+        gun: Gun::new(1.5, MultiShotType::Bomb),
         position: None,
     };
     tower_server.towers.push(bomb_tower);
 
     let swarm_tower = Tower {
-        range: 100.0,
+        range: 150.0,
         cost: 20,
         visuals: TowerVisuals {
             name: "Swarm".to_string(),
@@ -456,7 +472,7 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             cost: 20,
         },
         bullet: Bullet::new(
-            ImpactType::Pierce(3),
+            // ImpactType::Pierce(3),
             2,
             Movement {
                 target: Target::Point(None),
@@ -464,13 +480,20 @@ pub fn setup_towers(mut tower_server: ResMut<TowerServer>) {
             },
         ),
         gun: Gun::new(
-            4,
+            // 4,
             1.0,
-            2.0,
-            MultiShotType::Spread(Spread {
-                num_shots: 4,
-                spread_angle_deg: 20.0,
+            // 2.0,
+            MultiShotType::Swarm(Swarm {
+                // num: 4,
+                timer: Timer::from_seconds(0.8, false),
+                bullet: None,
+                target: Target::Point(None),
+                entities: Vec::new(),
             }),
+            // MultiShotType::Spread(Spread {
+            //     num_shots: 4,
+            //     spread_angle_deg: 20.0,
+            // }),
         ),
         position: None,
     };
@@ -608,7 +631,7 @@ fn move_bullets(mut q_bullets: Query<(&mut Transform, &Bullet)>, time: Res<Time>
                         dir.normalize_or_zero() * time.delta_seconds() * bullet.movement.speed;
                 }
             }
-            Target::Follow(_) => todo!(),
+            // Target::Follow(_) => todo!(),
             Target::Direction(d) => {
                 if let Some(d) = d {
                     trans.translation +=
@@ -741,16 +764,139 @@ fn explosion_damage(
     }
 }
 
-fn swarm_tick(mut q_swarm: Query<(&mut Transform, &mut SwarmComponent)>, time: Res<Time>) {
-    for (mut trans, mut swarm) in q_swarm.iter_mut() {
+fn swarm_init(mut commands: Commands, mut q_swarm: Query<(&Transform, &mut Swarm), Added<Swarm>>) {
+    for (trans, mut swarm) in q_swarm.iter_mut() {
+        let t = swarm.target;
+        let p = match t {
+            Target::None => todo!(),
+            Target::Point(p) => p.unwrap(),
+            // Target::Follow(_) => todo!(),
+            Target::Direction(_) => todo!(),
+        };
+
+        let spawn_dir = (p - trans.translation).truncate();
+
+        let spread_angle_rad = 40.0 * 0.0174533;
+        let spread_half_angle = spread_angle_rad / 2.0;
+
+        let left_dir = Vec2::from_angle(-spread_half_angle).rotate(spawn_dir);
+        let right_dir = Vec2::from_angle(spread_half_angle).rotate(spawn_dir);
+
+        let far_left_dir = Vec2::from_angle(-2.0 * spread_half_angle).rotate(spawn_dir);
+        let far_right_dir = Vec2::from_angle(2.0 * spread_half_angle).rotate(spawn_dir);
+
+        let v = vec![far_left_dir, left_dir, right_dir, far_right_dir];
+
+        for dir in v {
+            let end_pos = trans.translation + (dir.normalize_or_zero() * 50.0).extend(0.0);
+
+            let e = commands
+                .spawn_bundle(SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::PURPLE,
+                        custom_size: Some(Vec2::new(5.0, 5.0)),
+                        ..default()
+                    },
+                    transform: Transform::from_translation(
+                        trans.translation + Vec3::new(0.0, 0.0, 0.2), //.position.unwrap().extend(0.2),
+                                                                      // trans.translation() + Vec3::new(0.0, 0.0, 0.1),
+                    ),
+                    ..default() // does this clone twice?
+                })
+                .insert(SwarmComponent {
+                    start_pos: trans.translation,
+                    end_pos,
+                })
+                .id();
+
+            swarm.entities.push(e);
+
+            // .insert(swarm.bullet.clone().update_target(target))
+            //             .insert(Collider::ball(5.0))
+            //             .insert(RigidBody::Dynamic)
+            //             .insert(Sensor).id();
+        }
+    }
+}
+
+fn swarm_tick(
+    mut commands: Commands,
+    rapier_context: Res<RapierContext>,
+    q_enemies: Query<(Entity, &Transform), (With<Enemy>, Without<Swarm>, Without<SwarmComponent>)>,
+    mut q_swarm: Query<(Entity, &Transform, &mut Swarm), (Without<SwarmComponent>, Without<Enemy>)>,
+    mut q_swarm_objs: Query<(&mut Transform, &SwarmComponent), (Without<Enemy>, Without<Swarm>)>,
+    time: Res<Time>,
+) {
+    for (entity, trans, mut swarm) in q_swarm.iter_mut() {
         if swarm.timer.tick(time.delta()).just_finished() {
             // do normal bullet things
             // spawn a normal bullet?
             // add bullet component and remove swarm?
             // need to add collision
+
+            let collisions = rapier_context.intersections_with(entity);
+            let close_pair = collisions
+                // figure out which is self and which is enemy
+                .map(|(a, b, _inter)| if a == entity { b } else { a })
+                // filter out enemies from other entities (like bullets)
+                .filter(|b| q_enemies.contains(*b))
+                // turn 1 entity into (entity, vec3)
+                // which is what we want returned
+                .map(|b| {
+                    let (e, pos) = q_enemies.get(b).unwrap();
+                    (e, pos.translation)
+                })
+                // find the smallest distance
+                // many -> one
+                .min_by_key(|(_e, pos)| {
+                    // let (_ent, trans) = q_enemies.get(*b).unwrap();
+                    FloatOrd(trans.translation.distance_squared(*pos))
+                });
+
+            // send the target to each swarm spawn
+            for &e in swarm.entities.iter() {
+                if let Ok((t, s)) = q_swarm_objs.get(e) {
+                    // if a target exists, all orbs fire at that point
+                    // else just fly off into space
+                    let target;
+                    if let Some((_e, pos)) = close_pair {
+                        let dir_to_center = Vec3::ZERO - pos;
+                        // enemies moving towards center
+                        // movement is 50
+                        // bomb takes 1s to travel
+                        // in 1s, they will be 50.0 closer to the center so aim there
+                        let prediction = pos + dir_to_center.normalize_or_zero() * 25.0;
+
+                        target = Target::Direction(Some(
+                            (prediction - t.translation).normalize_or_zero(),
+                        ));
+                    } else {
+                        target =
+                            Target::Direction(Some((s.end_pos - s.start_pos).normalize_or_zero()));
+                    }
+
+                    commands.entity(e).remove::<SwarmComponent>();
+                    commands
+                        .entity(e)
+                        .insert(swarm.bullet.clone().unwrap().update_target(target))
+                        .insert(Collider::ball(5.0))
+                        .insert(RigidBody::Dynamic)
+                        .insert(Sensor);
+                }
+            }
+
+            // destroy the helper now that the orbs have their own direction
+            commands.entity(entity).despawn_recursive();
         } else {
             let t = swarm.timer.percent();
-            trans.translation = Vec2::lerp(swarm.start_pos, swarm.end_pos, t).extend(0.3);
+
+            for &e in swarm.entities.iter() {
+                if let Ok((mut ent_trans, swarm_c)) = q_swarm_objs.get_mut(e) {
+                    ent_trans.translation = Vec3::lerp(swarm_c.start_pos, swarm_c.end_pos, t);
+                }
+            }
+
+            // trans.translation = Vec2::lerp(swarm.start_pos, swarm.end_pos, t).extend(0.3);
         }
     }
 }
@@ -836,7 +982,7 @@ fn tower_tick(
                 //         println!("Both entities same");
                 //     }
                 // }
-                let (closest_ent, closest_pos) = close_pair.unwrap();
+                let (_closest_ent, closest_pos) = close_pair.unwrap();
 
                 match tower.get_target() {
                     Target::None => {}
@@ -844,10 +990,10 @@ fn tower_tick(
                         let target = Target::Point(Some(closest_pos));
                         tower.shoot(&mut commands, target);
                     }
-                    Target::Follow(_) => {
-                        let target = Target::Follow(Some(closest_ent));
-                        tower.shoot(&mut commands, target);
-                    }
+                    // Target::Follow(_) => {
+                    //     let target = Target::Follow(Some(closest_ent));
+                    //     tower.shoot(&mut commands, target);
+                    // }
                     Target::Direction(_) => {
                         // enemies moving towards center
                         // movement is 50
