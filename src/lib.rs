@@ -9,6 +9,7 @@ mod grid;
 mod loading;
 mod tower;
 mod ui;
+mod utility;
 
 pub struct GamePlugin;
 

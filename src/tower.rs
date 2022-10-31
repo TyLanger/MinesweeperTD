@@ -4,7 +4,7 @@ use crate::{
     grid::{clear_selection, ClearSelectionsEvent, Grid, Selection, Tile, TileState},
     loading::SpriteAssets,
     ui::{update_buttons, ButtonPressEvent},
-    GameState,
+    utility, GameState,
 };
 use bevy::utils::Duration;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle, utils::FloatOrd};
@@ -913,9 +913,22 @@ fn swarm_tick(
                         // in 1s, they will be 50.0 closer to the center so aim there
                         let prediction = pos + dir_to_center.normalize_or_zero() * 25.0;
 
-                        target = Target::Direction(Some(
-                            (prediction - t.translation).normalize_or_zero(),
-                        ));
+                        // bullets all have speed 100.0
+                        // enemies all have speed 50.0
+                        let inter = utility::get_intercept(
+                            t.translation.truncate(),
+                            100.0,
+                            pos.truncate(),
+                            dir_to_center.truncate().normalize_or_zero(),
+                            50.0,
+                        );
+                        if let Some(inter) = inter {
+                            target = Target::Direction(Some(inter.heading.extend(0.0)));
+                        } else {
+                            target = Target::Direction(Some(
+                                (prediction - t.translation).normalize_or_zero(),
+                            ));
+                        }
                     } else {
                         target =
                             Target::Direction(Some((s.end_pos - s.start_pos).normalize_or_zero()));
@@ -1048,14 +1061,30 @@ fn tower_tick(
                         // in 1s, they will be 50.0 closer to the center so aim there
                         // other bullets are faster. lead by less
                         // if I really wanted good aim, would need to scale it by distance to target
-
                         let dir_to_center = Vec3::ZERO - closest_pos;
-                        let prediction = closest_pos + dir_to_center.normalize_or_zero() * 30.0;
-                        let dir = prediction - tower_trans.translation();
 
-                        //let dir = closest_pos - tower_trans.translation();
-                        let target = Target::Direction(Some(dir));
-                        tower.shoot(&mut commands, target);
+                        // bullets all have speed 100.0
+                        // enemies all have speed 50.0
+                        let inter = utility::get_intercept(
+                            tower_trans.translation().truncate(),
+                            100.0,
+                            closest_pos.truncate(),
+                            dir_to_center.truncate().normalize_or_zero(),
+                            50.0,
+                        );
+                        if let Some(inter) = inter {
+                            // accurate predictions
+                            let target = Target::Direction(Some(inter.heading.extend(0.0)));
+                            tower.shoot(&mut commands, target);
+                        } else {
+                            let prediction = closest_pos + dir_to_center.normalize_or_zero() * 30.0;
+
+                            let dir = prediction - tower_trans.translation();
+
+                            //let dir = closest_pos - tower_trans.translation();
+                            let target = Target::Direction(Some(dir));
+                            tower.shoot(&mut commands, target);
+                        }
                     }
                 }
             }
