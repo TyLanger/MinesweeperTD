@@ -142,8 +142,7 @@ pub fn get_intercept(
                     two[1]
                 };
 
-                let intercept_pos =
-                    prey_pos + prey_dir * prey_speed * time_to_intercept;
+                let intercept_pos = prey_pos + prey_dir * prey_speed * time_to_intercept;
                 let heading = intercept_pos - predator_pos;
                 return Some(Interception {
                     intercept_pos,

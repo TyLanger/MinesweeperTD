@@ -80,7 +80,7 @@ fn movement(mut q_enemies: Query<(&mut Transform, &Movement, &Enemy)>, time: Res
 
 fn tick_enemy(
     mut commands: Commands,
-    q_enemies: Query<(Entity, &Enemy)>,
+    q_enemies: Query<(Entity, &Enemy), Changed<Enemy>>,
     mut q_castle: Query<&mut Castle>,
 ) {
     for (entity, enemy) in q_enemies.iter() {

@@ -7,6 +7,7 @@ mod director;
 mod enemy;
 mod grid;
 mod loading;
+mod pathfinding;
 mod tower;
 mod ui;
 mod utility;
@@ -24,6 +25,7 @@ impl Plugin for GamePlugin {
             .add_plugin(castle::CastlePlugin)
             .add_plugin(director::DirectorPlugin)
             .add_plugin(enemy::EnemyPlugin)
+            .add_plugin(pathfinding::PathfindingPlugin)
             .add_system(update_mouse_position);
     }
 }

@@ -146,9 +146,9 @@ pub struct TileInfo {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-struct Coords {
-    x: i32,
-    y: i32,
+pub struct Coords {
+    pub x: i32,
+    pub y: i32,
 }
 
 impl Coords {
