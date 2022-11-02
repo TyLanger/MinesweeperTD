@@ -1,4 +1,5 @@
 use bevy::{math::vec2, prelude::*};
+use rand::prelude::*;
 
 pub struct FlowFieldPlugin;
 
@@ -20,15 +21,17 @@ fn test_flow() {
 }
 
 fn generate_flow_field(destination_x: usize, destination_y: usize) {
-    let width = 5;
-    let height = 4;
+    let width = 10;
+    let height = 8;
 
     let mut nodes: Vec<Tile> = Vec::with_capacity(width * height);
     // create the tiles
     for _i in 0..width {
         for _j in 0..height {
+            let mut rng = rand::thread_rng();
+
             nodes.push(Tile {
-                cost: 1,
+                cost: if rng.gen_bool(0.5) { 1 } else { 10 },
                 weight: u32::MAX,
                 dir: None,
             });
@@ -120,8 +123,43 @@ fn generate_flow_field(destination_x: usize, destination_y: usize) {
         }
     }
 
-    for (i, val) in nodes.iter().enumerate() {
-        println!("{}: {:?}", i, val);
+    // for (i, val) in nodes.iter().enumerate() {
+    //     // ><^v /\
+    //     println!("{}: {:?}", i, val);
+    // }
+    for j in 0..height {
+        for i in 0..width {
+            let mut c = "   ";
+            match nodes.get(calculate_index(i, height - (j + 1), height)).unwrap().dir {
+                Some(v) => {
+                    let x = v.x.floor();
+                    let y = v.y.floor();
+                    if x == 0.0 && y == 1.0 {
+                        c = " ^ ";
+                    } else if x == 1.0 && y == 1.0 {
+                        c = " / ";
+                    } else if x == 1.0 && y == 0.0 {
+                        c = " > ";
+                    } else if x == 1.0 && y == -1.0 {
+                        c = " \\ ";
+                    } else if x == 0.0 && y == -1.0 {
+                        c = " v ";
+                    } else if x == -1.0 && y == -1.0 {
+                        c = " / ";
+                    } else if x == -1.0 && y == 0.0 {
+                        c = " < ";
+                    } else if x == -1.0 && y == 1.0 {
+                        c = " \\ ";
+                    }
+                }
+
+                None => {
+                    c = " ";
+                }
+            };
+            print!("{}", c);
+        }
+        println!("");
     }
 }
 
