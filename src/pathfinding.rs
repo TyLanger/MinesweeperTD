@@ -83,7 +83,7 @@ fn test_path() {
 
 pub fn find_path(start_x: usize, start_y: usize, end_x: usize, end_y: usize) {
     let grid_width = 4;
-    let grid_height = 4;
+    let grid_height = 5;
 
     let mut nodes = Vec::new();
 
@@ -91,7 +91,7 @@ pub fn find_path(start_x: usize, start_y: usize, end_x: usize, end_y: usize) {
         for j in 0..grid_height {
             let g = usize::MAX;
             let h = calculate_dist_cost(i, j, end_x, end_y);
-            let index = calculate_index(i, j, grid_width);
+            let index = calculate_index(i, j, grid_height);
             let f = g; // g + h, but g is max value so don't want overflow
             let node = PathNode {
                 x: i,
@@ -107,7 +107,7 @@ pub fn find_path(start_x: usize, start_y: usize, end_x: usize, end_y: usize) {
         }
     }
 
-    let index = calculate_index(start_x, start_y, grid_width);
+    let index = calculate_index(start_x, start_y, grid_height);
     if let Some(mut start_node) = nodes.get_mut(index) {
         start_node.g = 0;
         start_node.calculate_f_cost();
@@ -117,7 +117,7 @@ pub fn find_path(start_x: usize, start_y: usize, end_x: usize, end_y: usize) {
 
         open_list.push(start_node.index);
 
-        let end_index = calculate_index(end_x, end_y, grid_width);
+        let end_index = calculate_index(end_x, end_y, grid_height);
 
         let mut open_list_len = open_list.len().clone();
         let mut count = 0;
@@ -245,27 +245,27 @@ fn get_neighbour_indicies(x: usize, y: usize, width: usize, height: usize) -> Ve
     let h = height - 1;
     let w = width - 1;
     if y < h {
-        v.push(calculate_index(x, y + 1, width)); // up
+        v.push(calculate_index(x, y + 1, height)); // up
     }
     if y < h && x < w {
-        v.push(calculate_index(x + 1, y + 1, width)); // up right
+        v.push(calculate_index(x + 1, y + 1, height)); // up right
     }
     if x < w {
-        v.push(calculate_index(x + 1, y, width)); // right
+        v.push(calculate_index(x + 1, y, height)); // right
     }
     if y > 0 {
         if x < w {
-            v.push(calculate_index(x + 1, y - 1, width)); // down right
+            v.push(calculate_index(x + 1, y - 1, height)); // down right
         }
-        v.push(calculate_index(x, y - 1, width)); // down
+        v.push(calculate_index(x, y - 1, height)); // down
     }
     if y > 0 && x > 0 {
-        v.push(calculate_index(x - 1, y - 1, width)); // down left
+        v.push(calculate_index(x - 1, y - 1, height)); // down left
     }
     if x > 0 {
-        v.push(calculate_index(x - 1, y, width)); // left
+        v.push(calculate_index(x - 1, y, height)); // left
         if y < h {
-            v.push(calculate_index(x - 1, y + 1, width)); // up left
+            v.push(calculate_index(x - 1, y + 1, height)); // up left
         }
     }
 
@@ -279,7 +279,7 @@ fn get_lowest_fcost_index(open_list: &Vec<usize>, nodes: &Vec<PathNode>) -> Opti
         .map(|x| *x)
 }
 
-fn calculate_index(x: usize, y: usize, grid_width: usize) -> usize {
+fn calculate_index(x: usize, y: usize, grid_height: usize) -> usize {
     //this gives
     // 12 13 14 15
     // 8 9 10 11
@@ -293,7 +293,7 @@ fn calculate_index(x: usize, y: usize, grid_width: usize) -> usize {
     // 0 4 8 12
     // this is the order elements are created if
     // for x { for y { }}
-    y + x * grid_width
+    y + x * grid_height
 }
 
 fn calculate_dist_cost(a_x: usize, a_y: usize, b_x: usize, b_y: usize) -> usize {

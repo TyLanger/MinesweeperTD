@@ -5,6 +5,7 @@ use bevy::{prelude::*, render::camera::RenderTarget};
 mod castle;
 mod director;
 mod enemy;
+mod flow_field;
 mod grid;
 mod loading;
 mod pathfinding;
@@ -26,6 +27,7 @@ impl Plugin for GamePlugin {
             .add_plugin(director::DirectorPlugin)
             .add_plugin(enemy::EnemyPlugin)
             .add_plugin(pathfinding::PathfindingPlugin)
+            .add_plugin(flow_field::FlowFieldPlugin)
             .add_system(update_mouse_position);
     }
 }
